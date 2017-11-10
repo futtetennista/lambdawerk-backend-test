@@ -1,4 +1,5 @@
 {-# LANGUAGE DeriveGeneric #-}
+{-# LANGUAGE RankNTypes #-}
 module Person ( Person(..)
               , parseFile
               )
@@ -10,7 +11,7 @@ import Data.XML.Types (Event)
 import Conduit
 import qualified Data.Text as T
 import Data.Maybe (fromMaybe)
-import qualified Data.Vector as V
+import Data.Vector (Vector)
 import qualified Data.Aeson as JSON
 import GHC.Generics (Generic)
 
@@ -43,7 +44,10 @@ parsePerson =
            <*> tagContentOrEmpty "phone"
     where
       tagContentOrEmpty tagName =
-        XML.tagNoAttr tagName XML.content >>= return . fromMaybe ""
+        XML.tagNoAttr tagName XML.content >>= contentOrEmptyText
+
+      contentOrEmptyText =
+        return . fromMaybe ""
 
 
 parsePeople :: MonadThrow m => Conduit Event m Person
@@ -51,9 +55,8 @@ parsePeople =
   void $ XML.tagNoAttr "members" $ XML.manyYield parsePerson
 
 
-parseFile :: Int -> FilePath -> Conduit Person (ResourceT IO) (V.Vector Person)
+parseFile :: Int -> FilePath -> Producer (ResourceT IO) (Vector Person)
 parseFile batchSize fp =
-  -- runConduitRes $
   XML.parseFile XML.def fp
     .| parsePeople
     .| conduitVector batchSize

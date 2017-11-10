@@ -1,16 +1,30 @@
+{-# LANGUAGE FlexibleContexts #-}
 module Main where
 
 import Protolude
-import Person
+import Person (Person(..), parseFile)
 import Conduit
-import qualified Data.Vector as V
+import Data.Vector (Vector)
+
 
 main :: IO ()
-main =
+main = do
+  batchSize <- calculateBatchSize
+  let file = "update-file.xml"
+  runConduitRes $ parseFile batchSize file .| sinkDb
+
+
+calculateBatchSize :: IO Int
+calculateBatchSize =
   undefined
 
 
-httpSink :: Sink (V.Vector Person) (ResourceT IO) ()
-httpSink = do
-  xs <- await
-  maybe (return ()) print xs
+sinkDb :: MonadBaseControl IO m => Consumer (Vector Person) (ResourceT m) ()
+sinkDb =
+  maybe done execDb =<< await
+  where
+    done =
+      return ()
+
+    execDb =
+      undefined
