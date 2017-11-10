@@ -1,22 +1,33 @@
+{-# LANGUAGE DeriveGeneric #-}
 module Person ( Person(..)
-              , Row
               , parseFile
-              , toRow
               )
 where
 
 import Lib.Prelude
-import qualified Text.XML.Stream.Parse as Parser
+import qualified Text.XML.Stream.Parse as XML
 import Data.XML.Types (Event)
 import Conduit
 import qualified Data.Text as T
 import Data.Maybe (fromMaybe)
 import qualified Data.Vector as V
+import qualified Data.Aeson as JSON
+import GHC.Generics (Generic)
 
 
 data Person =
-  Person T.Text T.Text Iso8601Date T.Text
-  deriving Show
+  Person { lname :: T.Text
+         , fname :: T.Text
+         , bos :: Iso8601Date
+         , phone :: T.Text
+         }
+  deriving (Show, Generic)
+
+
+-- Automatic (and fast!) decoding to corresponing JSON object
+instance JSON.ToJSON Person where
+  toEncoding =
+    JSON.genericToEncoding JSON.defaultOptions
 
 
 type Iso8601Date =
@@ -25,16 +36,24 @@ type Iso8601Date =
 
 parsePerson :: MonadThrow m => Consumer Event m (Maybe Person)
 parsePerson =
-  Parser.tagNoAttr "member" $
+  XML.tagNoAttr "member" $
     Person <$> tagContentOrEmpty "firstname"
            <*> tagContentOrEmpty "lastname"
            <*> tagContentOrEmpty "date-of-birth"
            <*> tagContentOrEmpty "phone"
     where
       tagContentOrEmpty tagName =
-        Parser.tagNoAttr tagName Parser.content >>= return . fromMaybe ""
+        XML.tagNoAttr tagName XML.content >>= return . fromMaybe ""
 
 
 parsePeople :: MonadThrow m => Conduit Event m Person
 parsePeople =
-  void $ Parser.tagNoAttr "members" $ Parser.manyYield parsePerson
+  void $ XML.tagNoAttr "members" $ XML.manyYield parsePerson
+
+
+parseFile :: Int -> FilePath -> Conduit Person (ResourceT IO) (V.Vector Person)
+parseFile batchSize fp =
+  -- runConduitRes $
+  XML.parseFile XML.def fp
+    .| parsePeople
+    .| conduitVector batchSize

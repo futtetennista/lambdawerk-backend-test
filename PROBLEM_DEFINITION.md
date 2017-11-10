@@ -11,8 +11,8 @@ the form
 
 ```
 <member>
- <first-name>JOHN</first-name>
- <last-name>DOE</last-name>
+ <firstname>JOHN</firstname>
+ <lastname>DOE</lastname>
  <date-of-birth>2002-02-01</date-of-birth>
  <phone>9548938821</phone>
 </member>
