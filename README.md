@@ -1,18 +1,5 @@
 # LambdaWerk backend developer test
 
-## Assumptions
-
-- The database is on a remote machine therefore the program must connect to it over
-the wire.
-- A person is identified by all the field in the table. Rationale: first and last
-name alone are not sufficient since two persons could be homonyms, adding the
-date of birth makes it safer but it's still possible that the record identifies
-two distinct persons. The telephone number alone is not sufficient because it is
-not specified if the number is a home number - which could belong to a family
-unit for example and appear in multiple persons records - or a personal number (
-now in theory this can also be insufficient but this is as good as it gets given
-the data we have).
-
 ## Considered solutions analysis
 
 ### 1. Reading the whole XML file
@@ -72,8 +59,10 @@ still potentially slow. Is it possible to avoid this step completely?
 
 ### 4. Batch-upserting
 
-#### Prerequisite
-`ALTER` the persons table and add a `PRIMARY KEY` constraint needed by the
+#### Prerequisites
+- `UPDATE` the persons table and add default `lname`s and `dob`s where missing
+in order to be able to add a primary key constraint
+- `ALTER` the persons table and add a `PRIMARY KEY` constraint needed by the
 `ON CONFLICT` statement.
 
 #### Algorithm description
@@ -82,23 +71,42 @@ i.e. memory available)
 - `UPSERT` N persons leveraging Postegres own `ON CONFLICT` statement
 - repeat for all persons in the XML file
 
-`UPSERT`ing would look something like:
+The `UPSERT` statement would be something like:
 ``` sql
 INSERT INTO person AS p VALUES
 ('JIARA','HERTZEL','1935-06-05','5859012134'),
 ('RONJARVIOU','COMELLO','1932-09-27','7702713416')
-ON CONFLICT (fname,lname,dob,phone) DO UPDATE
+ON CONFLICT (fname,lname,dob) DO UPDATE
 SET phone = EXCLUDED.phone
 WHERE p.phone != EXCLUDED.phone OR p.phone IS null;
 ```
 
 #### Performance evaluation
-The algorithm needs O(1) memory and O(P) `UPDATE`s / `INSERTION`s where P is
-the number of persons in the XML file.
+The algorithm needs O(1) memory and O(P) `UPSERT`ions where P is the number of
+persons in the XML file.
 
-PROs: constant memory usage and no need to issue multiple `SELECT`s
-CONs: the table must be modified
+##### PROs
+- client runs in constant memory
+- leverage postgres native merging capabilities to:
+  - simplify the client logic
+  - avoid the need to do any (slow) I/O to `SELECT` rows first to apply merging
+  in the client
+  - achieve good separation of concerns:
+    - client code parses the update XML file and asks the database to run the updates
+    - database function handles the merge logic
 
+##### CONs
+- there is a one-time cost to pay to sanitise the data in the persons table
+- there is a one-time cost to pay to add a primary key constraint in the persons table
+- not sure how the postgres function can be tested in an automated fashion
 
 The last solution seems to be the most performant in terms of both time and space
 and that's the reason why I decided ot implement it.
+
+## Assumptions
+- The database is on a remote machine therefore the program must connect to it over
+the wire
+- Removing the 267 entries that do not have either a last name or a birthdate is
+an unacceptable data loss
+- Importing persons is a periodic task so the one-time costs to pay upfront are
+acceptable

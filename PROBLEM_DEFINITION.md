@@ -51,6 +51,16 @@ into the database.
 ## Clarifications
 - what are "loading statistics"?
 - is altering the table allowed?
+- "uniquely identified by their first name (fname), last name (lname)
+and date of birth (dob)" BUT there are rows where dob is null...so this
+doesn't look like a valid primary key: 15 lname = NULL, 252 dob = NULL (o.O).
+Can I do smth about it? Delete them, put a default value? Get all dups with:
+``` sql
+WITH dups AS (SELECT fname, lname FROM person GROUP BY fname, lname HAVING COUNT(*) > 1)
+SELECT * FROM person
+WHERE fname IN (SELECT fname FROM dups) AND lname IN (SELECT lname FROM dups)
+ORDER BY fname, lname;
+```
 
 ## Evaluation metrics
 1. correctness
