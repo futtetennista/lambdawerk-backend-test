@@ -9,7 +9,6 @@ import Lib.Prelude
 import qualified Text.XML.Stream.Parse as XML
 import Data.XML.Types (Event)
 import Conduit
-import qualified Data.Text as T
 import Data.Maybe (fromMaybe)
 import Data.Vector (Vector)
 import qualified Data.Aeson as JSON
@@ -17,10 +16,10 @@ import GHC.Generics (Generic)
 
 
 data Person =
-  Person { lname :: T.Text
-         , fname :: T.Text
+  Person { lname :: Text
+         , fname :: Text
          , bos :: Iso8601Date
-         , phone :: T.Text
+         , phone :: Text
          }
   deriving (Show, Generic)
 
@@ -32,7 +31,7 @@ instance JSON.ToJSON Person where
 
 
 type Iso8601Date =
-  T.Text
+  Text
 
 
 parsePerson :: MonadThrow m => Consumer Event m (Maybe Person)
