@@ -18,7 +18,7 @@ import GHC.Generics (Generic)
 data Person =
   Person { lname :: Text
          , fname :: Text
-         , bos :: Iso8601Date
+         , dob :: Iso8601Date
          , phone :: Text
          }
   deriving (Show, Generic)
