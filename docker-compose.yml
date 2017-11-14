@@ -1,0 +1,15 @@
+version: "3.3"
+services:
+  postgREST:
+    image: postgrest/postgrest
+    ports:
+      - "3000:3000"
+    links:
+      - postgres:db
+    env_file: postgREST.env
+
+  postgres:
+    image: futtetennista/lambdawerk-postgres
+    ports:
+      - "5432:5432"
+    env_file: postgres.env

@@ -110,3 +110,20 @@ the wire
 an unacceptable data loss
 - Importing persons is a periodic task so the one-time costs to pay upfront are
 acceptable
+
+
+## Providing environment variables for the docker images
+- Create a file named `postgres.env` and set the following values:
+  * `POSTGRES_DB`
+  * `POSTGRES_USER`
+  * `POSTGRES_PASSWORD`
+- Create a file named `postgREST.env` and set the following values:
+  * `PGRST_DB_URI` of the form:
+  `postgres://[POSTGRES_USER]:[POSTGRES_PASSWORD]@postgres_container_alias:5432/[POSTGRES_DB]`
+  * `PGRST_DB_SCHEMA`
+  * `PGRST_DB_ANON_ROLE`
+  * `PGRST_SERVER_PROXY_URI`
+  * `PGRST_JWT_SECRET`
+
+Have a look at the sample files provided: `postgres.env.sample`,
+`postgREST.env.sample`, `rsa.jwk.pub.sample`
