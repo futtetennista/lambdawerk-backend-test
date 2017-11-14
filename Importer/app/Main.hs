@@ -22,7 +22,7 @@ main = do
       mconfig <- configFromEnv
       case mconfig of
           Nothing ->
-            print ("'API_ENDPOINT' env variable not set. Cannot connect to the db." :: Text)
+            print ("'API_ENDPOINT' or/and 'API_TOKEN' env variables not set. Cannot connect to the db." :: Text)
 
           Just config ->
             forM_ filePaths (processFile config batchSize)
@@ -44,14 +44,14 @@ waitAll (a:as) =
 
 
 printResults :: [Either SomeException UpsertionResult] -> IO ()
-printResults _ =
-  putStrLn ("DONE" :: Text)
+printResults =
+  mapM_ (either print print)
 
 
 
 configFromEnv :: IO (Maybe Config)
 configFromEnv =
-  liftA2 mkMaybeConfig (lookupEnv "API_ENDPOINT") (lookupEnv "API_JWT_TOKEN")
+  liftA2 mkMaybeConfig (lookupEnv "API_ENDPOINT") (lookupEnv "API_TOKEN")
   where
     mkMaybeConfig :: Maybe [Char] -> Maybe [Char] -> Maybe Config
     mkMaybeConfig mendpoint mjwtToken = do

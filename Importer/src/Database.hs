@@ -1,3 +1,4 @@
+{-# LANGUAGE DeriveGeneric #-}
 {-# LANGUAGE GeneralizedNewtypeDeriving #-}
 module Database ( UpsertionResult
                 , Config(..)
@@ -14,15 +15,16 @@ import Control.Exception.Safe
 import Network.URL
 import Data.ByteString.Char8 (unpack)
 import qualified Data.Aeson as JSON
+import qualified Data.Vector as V
 
 
 upsert :: (MonadCatch m, MonadIO m) => Config -> Vector Person -> m UpsertionResult
-upsert config xs =
+upsert config ps =
   handle mkUpsertionFailure $ do
     response <- httpLbs =<< mkRequest
     if statusIsSuccessful (getResponseStatus response)
-      then return $ Right ()
-      else do print ("Unsuccessful" :: Text) ; return $ Left GeneralException
+      then return $ Right (V.length ps)
+      else return $ Left GeneralException
   where
     mkRequest :: MonadThrow m => m Request
     mkRequest =
@@ -32,14 +34,15 @@ upsert config xs =
 
         Just url ->
           return . setRequestMethod "POST"
-                 . setRequestBodyJSON (UpsertRequestBody xs)
-                 . addRequestHeader "Authorization" ("Bearer: " <> configJWT config)
+                 . setRequestBodyJSON (UpsertRequestBody ps)
+                 . addRequestHeader "User-Agent" "importer/0.0.1"
+                 . addRequestHeader "Authorization" ("Bearer " <> configJWT config)
                  =<< parseRequest (exportURL url)
 
 
     murl :: Maybe URL
     murl =
-      importURL . unpack $ configDBEndpointURL config <> "/public/rpc/upsert"
+      importURL . unpack $ configDBEndpointURL config <> "/rpc/upsert"
 
 
 mkUpsertionFailure :: (MonadCatch m, MonadIO m) => SomeException -> m UpsertionResult
@@ -53,7 +56,7 @@ mkUpsertionFailure exception =
 
 
 type UpsertionResult =
-  Either UpsertionException ()
+  Either UpsertionException Int
 
 
 data UpsertionException
@@ -73,6 +76,12 @@ data Config =
   deriving Show
 
 
-newtype UpsertRequestBody =
-  UpsertRequestBody { members :: Vector Person }
-  deriving (JSON.ToJSON, Show)
+data UpsertRequestBody =
+  UpsertRequestBody { xs :: Vector Person }
+  deriving (Generic, Show)
+
+
+-- Automatic (and fast!) decoding to corresponing JSON object
+instance JSON.ToJSON UpsertRequestBody where
+  toEncoding =
+    JSON.genericToEncoding JSON.defaultOptions
