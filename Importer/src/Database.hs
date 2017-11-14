@@ -48,11 +48,11 @@ upsert config ps =
 mkUpsertionFailure :: (MonadCatch m, MonadIO m) => SomeException -> m UpsertionResult
 mkUpsertionFailure exception =
   case fromException exception of
-    Just (HttpExceptionRequest _ _) ->
-      do print ("Failure1" :: Text) ;  return $ Left ConnectionException
+    Just e@(HttpExceptionRequest _ _) ->
+      do print e ; return $ Left ConnectionException
 
-    _ ->
-      do print ("Failure2" :: Text) ; return $ Left GeneralException
+    e@_ ->
+      do print e ; return $ Left GeneralException
 
 
 type UpsertionResult =
@@ -77,7 +77,7 @@ data Config =
 
 
 data UpsertRequestBody =
-  UpsertRequestBody { xs :: Vector Person }
+  UpsertRequestBody { members :: Vector Person }
   deriving (Generic, Show)
 
 
