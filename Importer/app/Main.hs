@@ -44,8 +44,9 @@ waitAll (a:as) =
 
 
 printResults :: [Either SomeException UpsertionResult] -> IO ()
-printResults =
-  undefined
+printResults _ =
+  putStrLn ("DONE" :: Text)
+
 
 
 configFromEnv :: IO (Maybe Config)
@@ -62,7 +63,7 @@ configFromEnv =
 -- https://stackoverflow.com/questions/3254758/memory-footprint-of-haskell-data-types
 calculateBatchSize :: IO Int
 calculateBatchSize =
-  undefined
+  return 5000
 
 
 execUpsertions :: (MonadBaseControl IO m, MonadIO m)

@@ -13,15 +13,16 @@ import Network.HTTP.Types.Status
 import Control.Exception.Safe
 import Network.URL
 import Data.ByteString.Char8 (unpack)
+import qualified Data.Aeson as JSON
 
 
 upsert :: (MonadCatch m, MonadIO m) => Config -> Vector Person -> m UpsertionResult
-upsert config persons =
+upsert config xs =
   handle mkUpsertionFailure $ do
     response <- httpLbs =<< mkRequest
     if statusIsSuccessful (getResponseStatus response)
       then return $ Right ()
-      else return $ Left GeneralException
+      else do print ("Unsuccessful" :: Text) ; return $ Left GeneralException
   where
     mkRequest :: MonadThrow m => m Request
     mkRequest =
@@ -45,10 +46,10 @@ mkUpsertionFailure :: (MonadCatch m, MonadIO m) => SomeException -> m UpsertionR
 mkUpsertionFailure exception =
   case fromException exception of
     Just (HttpExceptionRequest _ _) ->
-      return $ Left ConnectionException
+      do print ("Failure1" :: Text) ;  return $ Left ConnectionException
 
     _ ->
-      return $ Left GeneralException
+      do print ("Failure2" :: Text) ; return $ Left GeneralException
 
 
 type UpsertionResult =
