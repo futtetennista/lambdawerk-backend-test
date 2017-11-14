@@ -68,20 +68,27 @@ configFromEnv =
 -- https://stackoverflow.com/questions/3254758/memory-footprint-of-haskell-data-types
 calculateBatchSize :: IO Int
 calculateBatchSize =
-  return 5000
+  return 1000
 
 
 execUpsertions :: (MonadBaseControl IO m, MonadIO m)
                => Config
                -> [Async UpsertionResult]
                -> Consumer (Vector Person) (ResourceT m) [Async UpsertionResult]
-execUpsertions config asyncUpsertions =
-  maybe done execUpsertion =<< await
+execUpsertions config asyncUpsertions = do
+  mpersons <- await
+  case mpersons of
+    Nothing ->
+      done
+
+    Just persons ->
+      -- process this batch and loop
+      execUpsertions config =<< execUpsertion persons
   where
     done =
       return asyncUpsertions
 
-    execUpsertion personBatch = do
-      asyncUpsertion <- liftIO $ async (upsert config personBatch)
+    execUpsertion persons = do
+      asyncUpsertion <- liftIO $ async (upsert config persons)
       return $ asyncUpsertion : asyncUpsertions
       -- liftA2 (:) (liftIO $ async (upsert personBatch)) (pure asyncUpsertions)
