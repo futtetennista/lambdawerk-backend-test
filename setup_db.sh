@@ -2,13 +2,13 @@
 
 set -euf -o pipefail
 
-# createuser admin --createdb --createrole
 createuser updater --no-login
 createuser authenticator --no-inherit --no-login
 createuser incognito --no-login
 
 # https://www.postgresql.org/docs/10/static/functions-json.html
 psql -v ON_ERROR_STOP=1 --username="$POSTGRES_USER" --dbname="$POSTGRES_DB" <<-EOSQL
+  -- needed to add the PRIMARY KEY constraint
   UPDATE person SET lname='unknown' WHERE lname IS null;
   UPDATE person SET dob='-infinity' WHERE dob IS null;
 
@@ -24,15 +24,16 @@ psql -v ON_ERROR_STOP=1 --username="$POSTGRES_USER" --dbname="$POSTGRES_DB" <<-E
        \$\$
     LANGUAGE SQL IMMUTABLE STRICT;
 
-  GRANT incognito TO postgres;
-  GRANT updater TO postgres;
-  GRANT updater to authenticator;
-
+  -- setup roles for postgREST
+  -- read permissions to anonymous users
   GRANT USAGE ON SCHEMA public TO incognito;
-  GRANT USAGE ON SCHEMA public TO updater;
-
   GRANT SELECT ON public.person TO incognito;
+
+  -- allow authenticator to execute `upsert` funtion
+  GRANT updater to authenticator;
+  GRANT USAGE ON SCHEMA public TO updater;
   GRANT EXECUTE ON FUNCTION public.upsert TO updater;
+
 EOSQL
 
 # To check if the permissions where set correctly using psql
