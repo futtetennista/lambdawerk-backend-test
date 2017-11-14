@@ -16,8 +16,7 @@ psql -v ON_ERROR_STOP=1 --username="$POSTGRES_USER" --dbname="$POSTGRES_DB" <<-E
 
   CREATE FUNCTION upsert(members json) RETURNS void
     AS \$\$ INSERT INTO person AS p
-            SELECT * FROM json_to_recordset(members)
-            AS x(fname character varying, lname character varying, dob date, phone character(10))
+            SELECT * FROM json_populate_recordset(null::person,members)
             ON CONFLICT (fname,lname,dob) DO UPDATE
             SET phone = EXCLUDED.phone
             WHERE p.phone != EXCLUDED.phone OR p.phone IS null;
@@ -25,14 +24,15 @@ psql -v ON_ERROR_STOP=1 --username="$POSTGRES_USER" --dbname="$POSTGRES_DB" <<-E
     LANGUAGE SQL VOLATILE STRICT;
 
   -- setup roles for postgREST
-  -- read permissions to anonymous users
+  -- grant read permissions to anonymous users
   GRANT USAGE ON SCHEMA public TO incognito;
   GRANT SELECT ON public.person TO incognito;
 
-  -- allow authenticator to execute `upsert` funtion
+  -- allow authenticator to execute "upsert" funtion
   GRANT importer to authenticator;
+  -- grant read/write permissions to the importer
   GRANT USAGE ON SCHEMA public TO importer;
-  GRANT INSERT,UPDATE,SELECT ON public.upsert TO importer;
+  GRANT INSERT,UPDATE,SELECT ON public.person TO importer;
 
 EOSQL
 
