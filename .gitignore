@@ -23,5 +23,6 @@ cabal.project.local
 .HTF/
 .ghc.environment.*
 TODO.md
-postgREST.env
-postgres.env
+*.env
+*.jwk
+*.pub

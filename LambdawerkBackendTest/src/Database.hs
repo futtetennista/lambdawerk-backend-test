@@ -1,3 +1,4 @@
+{-# LANGUAGE GeneralizedNewtypeDeriving #-}
 module Database ( UpsertionResult
                 , Config(..)
                 , upsert
@@ -28,12 +29,11 @@ upsert config persons =
         Nothing ->
           throw InvalidEndpointURLException
 
-        Just url -> do
-          initReq <- parseRequest (exportURL url)
-          return $ setRequestMethod "POST"
-                 $ setRequestBodyJSON persons
-                 $ addRequestHeader "Authorization" ("Bearer: " <> configJWTToken config)
-                 $ initReq
+        Just url ->
+          return . setRequestMethod "POST"
+                 . setRequestBodyJSON (UpsertRequestBody xs)
+                 . addRequestHeader "Authorization" ("Bearer: " <> configJWT config)
+                 =<< parseRequest (exportURL url)
 
 
     murl :: Maybe URL
@@ -67,6 +67,11 @@ instance Exception UpsertionException
 
 data Config =
   Config { configDBEndpointURL :: ByteString
-         , configJWTToken :: ByteString
+         , configJWT :: ByteString
          }
   deriving Show
+
+
+newtype UpsertRequestBody =
+  UpsertRequestBody { members :: Vector Person }
+  deriving (JSON.ToJSON, Show)
