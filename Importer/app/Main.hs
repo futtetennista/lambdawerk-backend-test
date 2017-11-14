@@ -3,13 +3,14 @@
 module Main (main)
 where
 
-import Protolude
+import Protolude hiding (first, second)
 import Person (Person(..), parseInputFile)
 import Database
 import Conduit
 import Data.Vector (Vector)
 import System.Environment (lookupEnv)
 import Data.ByteString.Char8 (pack)
+import Control.Arrow (first, second)
 
 
 main :: IO ()
@@ -29,6 +30,7 @@ main = do
     where
       processFile :: Config -> Int -> FilePath -> IO ()
       processFile config batchSize fp = do
+        putStrLn $ "Processing file: " ++ fp
         asyncUpsertions <- runConduitRes $
           parseInputFile batchSize fp .| execUpsertions config []
         results <- waitAll asyncUpsertions
@@ -45,7 +47,10 @@ waitAll (a:as) =
 
 printResults :: [Either SomeException UpsertionResult] -> IO ()
 printResults =
-  mapM_ (either print print)
+  print . foldr (\es acc -> either (const $ first (+1) acc)
+                                   (either (const $ first (+1) acc) (\x -> second (+x) acc))
+                                   es)
+                ((0, 0) :: (Int, Int))
 
 
 
