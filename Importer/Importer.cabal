@@ -31,6 +31,8 @@ library
                      , http-conduit == 2.2.3.2
                      , safe-exceptions == 0.1.6.*
                      , url == 2.1.*
+                     , text == 1.2.2.*
+                     , time == 1.6.0.*
   default-language:    Haskell2010
   default-extensions:  OverloadedStrings, NoImplicitPrelude
 

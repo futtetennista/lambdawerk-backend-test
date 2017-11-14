@@ -1,5 +1,4 @@
 {-# LANGUAGE DeriveGeneric #-}
-{-# LANGUAGE GeneralizedNewtypeDeriving #-}
 module Database ( UpsertionResult
                 , Config(..)
                 , upsert
@@ -33,11 +32,11 @@ upsert config ps =
           throw InvalidEndpointURLException
 
         Just url ->
-          return . setRequestMethod "POST"
-                 . setRequestBodyJSON (UpsertRequestBody ps)
-                 . addRequestHeader "User-Agent" "importer/0.0.1"
-                 . addRequestHeader "Authorization" ("Bearer " <> configJWT config)
-                 =<< parseRequest (exportURL url)
+          (setRequestMethod "POST" .
+           setRequestBodyJSON (UpsertRequestBody ps) .
+           addRequestHeader "User-Agent" "importer/0.0.1" .
+           addRequestHeader "Authorization" ("Bearer " <> configJWT config))
+          `fmap` parseRequest (exportURL url)
 
 
     murl :: Maybe URL

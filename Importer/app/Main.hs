@@ -39,10 +39,8 @@ main = do
 
 -- Wait for all workers to be done, ignoring failures
 waitAll :: [Async a] -> IO [Either SomeException a]
-waitAll [] =
-  return []
-waitAll (a:as) =
-  liftA2 (:) (waitCatch a) (waitAll as)
+waitAll =
+  foldr (liftA2 (:) . waitCatch) (return [])
 
 
 printResults :: [Either SomeException UpsertionResult] -> IO ()
@@ -58,11 +56,10 @@ configFromEnv :: IO (Maybe Config)
 configFromEnv =
   liftA2 mkMaybeConfig (lookupEnv "API_ENDPOINT") (lookupEnv "API_TOKEN")
   where
-    mkMaybeConfig :: Maybe [Char] -> Maybe [Char] -> Maybe Config
-    mkMaybeConfig mendpoint mjwtToken = do
+    mkMaybeConfig mendpoint mtoken = do
       endpoint <- mendpoint
-      jwtToken <- mjwtToken
-      return $ Config (pack endpoint) (pack jwtToken)
+      token <- mtoken
+      return $ Config (pack endpoint) (pack token)
 
 
 -- https://stackoverflow.com/questions/3254758/memory-footprint-of-haskell-data-types
