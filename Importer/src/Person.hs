@@ -16,6 +16,7 @@ import GHC.Generics (Generic)
 import qualified Data.Text as T
 import Data.Time.Format (parseTimeM, defaultTimeLocale, iso8601DateFormat)
 import Data.Time.Clock (UTCTime)
+import GHC.Base (String)
 
 
 data Person =
@@ -53,7 +54,7 @@ mkPerson mfn mln md mp =
     checkField "lname" =
       checkEmpty . fromMaybe ""
     checkField "dob" =
-      validateIso8601Date . fromMaybe ""
+      checkIso8601Date . fromMaybe ""
     checkField _ =
       return . fromMaybe ""
 
@@ -61,13 +62,18 @@ mkPerson mfn mln md mp =
       if T.null xs then Nothing else Just xs
 
 
-validateIso8601Date :: Text -> Maybe Iso8601Date
-validateIso8601Date xs =
+checkIso8601Date :: Text -> Maybe Iso8601Date
+checkIso8601Date xs =
   const xs `fmap` parseIso8601Date xs
   where
     parseIso8601Date :: Text -> Maybe UTCTime
     parseIso8601Date =
-      parseTimeM False defaultTimeLocale (iso8601DateFormat Nothing) . T.unpack
+      parseTimeM False defaultTimeLocale iso8601DateFormatNoTime . T.unpack
+
+
+iso8601DateFormatNoTime :: String
+iso8601DateFormatNoTime =
+  iso8601DateFormat Nothing
 
 
 parsePerson :: MonadThrow m => Consumer Event m (Maybe Person)
