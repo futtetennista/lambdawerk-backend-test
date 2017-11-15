@@ -33,22 +33,26 @@ main = do
         putStrLn $ "Processing file: " ++ fp
         asyncUpsertions <- runConduitRes $
           parseInputFile batchSize fp .| execUpsertions config []
-        results <- waitAll asyncUpsertions
+        results <- waitAll upsertionExceptionHandler asyncUpsertions
         printResults results
 
 
 -- Wait for all workers to be done, ignoring failures
-waitAll :: [Async a] -> IO [Either SomeException a]
-waitAll =
-  foldr (liftA2 (:) . waitCatch) (return [])
+waitAll :: ExceptionHandler IO a -> [Async a] -> IO [a]
+waitAll handler =
+  foldr (liftA2 (:) . tryWait) (return [])
+  where
+    tryWait =
+      handle handler . wait
 
 
-printResults :: [Either SomeException UpsertionResult] -> IO ()
+printResults :: [UpsertionResult] -> IO ()
 printResults =
-  print . foldr (\es acc -> either (const $ first (+1) acc)
-                                   (either (const $ first (+1) acc) (\x -> second (+x) acc))
-                                   es)
-                ((0, 0) :: (Int, Int))
+  print . foldr accumulateResults (0, 0)
+  where
+    accumulateResults :: UpsertionResult -> (Int, Int) -> (Int, Int)
+    accumulateResults eres acc =
+      either (const $ first (+1) acc) (\upsertionCount -> second (+upsertionCount) acc) eres
 
 
 

@@ -1,7 +1,10 @@
+{-# LANGUAGE RankNTypes #-}
 {-# LANGUAGE DeriveGeneric #-}
 module Database ( UpsertionResult
                 , Config(..)
+                , ExceptionHandler
                 , upsert
+                , upsertionExceptionHandler
                 )
 where
 
@@ -19,7 +22,7 @@ import qualified Data.Vector as V
 
 upsert :: (MonadCatch m, MonadIO m) => Config -> Vector Person -> m UpsertionResult
 upsert config ps =
-  handle mkUpsertionFailure $ do
+  handle upsertionExceptionHandler $ do
     response <- httpLbs =<< mkRequest
     if statusIsSuccessful (getResponseStatus response)
       then return $ Right (V.length ps)
@@ -44,13 +47,17 @@ upsert config ps =
       importURL . unpack $ configDBEndpointURL config <> "/rpc/upsert"
 
 
-mkUpsertionFailure :: (MonadCatch m, MonadIO m) => SomeException -> m UpsertionResult
-mkUpsertionFailure exception =
+type ExceptionHandler m a =
+  (MonadCatch m, MonadIO m) => SomeException -> m a
+
+
+upsertionExceptionHandler :: ExceptionHandler m UpsertionResult
+upsertionExceptionHandler exception =
   case fromException exception of
     Just e@(HttpExceptionRequest _ _) ->
       do print e ; return $ Left ConnectionException
 
-    e@_ ->
+    e ->
       do print e ; return $ Left GeneralException
 
 
