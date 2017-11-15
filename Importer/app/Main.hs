@@ -11,6 +11,7 @@ import Data.Vector (Vector)
 import System.Environment (lookupEnv)
 import Data.ByteString.Char8 (pack)
 import Control.Arrow (first, second)
+import Data.Time.Clock (UTCTime, getCurrentTime, diffUTCTime)
 
 
 main :: IO ()
@@ -31,13 +32,16 @@ main = do
       processFile :: Config -> Int -> FilePath -> IO ()
       processFile config batchSize fp = do
         putStrLn $ "Processing file: " ++ fp
+        -- stream the input file and request UPSERTions asynchronously
+        startTime <- getCurrentTime
         asyncUpsertions <- runConduitRes $
           parseInputFile batchSize fp .| execUpsertions config []
-        results <- waitAll upsertionExceptionHandler asyncUpsertions
-        printResults results
+        -- wait for all workers to be done and gather their statistics
+        stats <- waitAll upsertionExceptionHandler asyncUpsertions
+        endTime <- getCurrentTime
+        printStats (startTime, endTime) stats
 
 
--- Wait for all workers to be done, ignoring failures
 waitAll :: ExceptionHandler IO a -> [Async a] -> IO [a]
 waitAll handler =
   foldr (liftA2 (:) . tryWait) (return [])
@@ -46,14 +50,18 @@ waitAll handler =
       handle handler . wait
 
 
-printResults :: [UpsertionResult] -> IO ()
-printResults =
-  print . foldr accumulateResults (0, 0)
+printStats :: (UTCTime, UTCTime) -> [UpsertionResult] -> IO ()
+printStats (startTime, endTime) stats = do
+  let
+    (failureCount, successCount) =
+      foldr accumulateResults (0, 0) stats
+  print ("Failures: " <> show failureCount <> "\tSuccesses:" <> show successCount :: Text)
+  print ("importer took " <> show (diffUTCTime endTime startTime)
+         <> " seconds to import ??? members" :: Text)
   where
     accumulateResults :: UpsertionResult -> (Int, Int) -> (Int, Int)
     accumulateResults eres acc =
       either (const $ first (+1) acc) (\upsertionCount -> second (+upsertionCount) acc) eres
-
 
 
 configFromEnv :: IO (Maybe Config)
