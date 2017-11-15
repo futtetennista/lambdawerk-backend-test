@@ -14,14 +14,21 @@ psql -v ON_ERROR_STOP=1 --username="$POSTGRES_USER" --dbname="$POSTGRES_DB" <<-E
 
   ALTER TABLE person ADD PRIMARY KEY (fname,lname,dob);
 
-  CREATE FUNCTION upsert(members json) RETURNS void
-    AS \$\$ INSERT INTO person AS p
-            SELECT * FROM json_populate_recordset(null::person,members)
-            ON CONFLICT (fname,lname,dob) DO UPDATE
-            SET phone = EXCLUDED.phone
-            WHERE p.phone != EXCLUDED.phone OR p.phone IS null;
-       \$\$
-    LANGUAGE SQL VOLATILE STRICT;
+  CREATE FUNCTION upsert(members json) RETURNS integer
+  AS \$\$
+    DECLARE
+      affected_row_count integer;
+    BEGIN
+      INSERT INTO person AS p
+      SELECT * FROM json_populate_recordset(null::person,members)
+      ON CONFLICT (fname,lname,dob) DO UPDATE
+      SET phone = EXCLUDED.phone
+      WHERE p.phone != EXCLUDED.phone OR p.phone IS null;
+
+      GET DIAGNOSTICS affected_row_count = ROW_COUNT;
+      RETURN affected_row_count;
+    END;
+  \$\$ LANGUAGE PLPGSQL VOLATILE STRICT;
 
   -- setup roles for postgREST
   -- grant read permissions to anonymous users
