@@ -37,7 +37,7 @@ main = do
         asyncUpsertions <- runConduitRes $
           parseInputFile batchSize fp .| execUpsertions config []
         -- wait for all workers to be done and gather their statistics
-        stats <- waitAll upsertionExceptionHandler asyncUpsertions
+        stats <- waitAll (upsertionExceptionHandler []) asyncUpsertions
         endTime <- getCurrentTime
         prettyPrint (mkStats (startTime, endTime) stats)
 
@@ -67,8 +67,8 @@ calculateBatchSize =
 
 execUpsertions :: (MonadBaseControl IO m, MonadIO m)
                => Config
-               -> [Async UpsertionResult]
-               -> Consumer (Vector Person) (ResourceT m) [Async UpsertionResult]
+               -> [Async (UpsertionResult [Person])]
+               -> Consumer (Vector Person) (ResourceT m) [Async (UpsertionResult [Person])]
 execUpsertions config asyncUpsertions = do
   mpersons <- await
   case mpersons of

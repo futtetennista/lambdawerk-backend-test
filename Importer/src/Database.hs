@@ -23,19 +23,19 @@ import qualified Data.Aeson as JSON
 import qualified Data.Vector as V
 
 
-upsert :: (MonadCatch m, MonadIO m) => Config -> Vector Person -> m UpsertionResult
+upsert :: (MonadCatch m, MonadIO m) => Config -> Vector Person -> m (UpsertionResult [Person])
 upsert config ps =
-  handle upsertionExceptionHandler $ do
+  handle (upsertionExceptionHandler (V.toList ps)) $ do
     response :: Response UpsertResponseBody <- httpJSON =<< mkRequest
     if statusIsSuccessful (getResponseStatus response)
       then return $ Right (V.length ps, modified_rows (getResponseBody response))
-      else return $ Left GeneralException
+      else return $ Left (GeneralException (V.toList ps))
   where
     mkRequest :: MonadThrow m => m Request
     mkRequest =
       case murl of
         Nothing ->
-          throw InvalidEndpointURLException
+          throw $ InvalidEndpointURLException (V.toList ps)
 
         Just url ->
           (setRequestMethod "POST" .
@@ -54,28 +54,28 @@ type ExceptionHandler m a =
   (MonadCatch m, MonadIO m) => SomeException -> m a
 
 
-upsertionExceptionHandler :: ExceptionHandler m UpsertionResult
-upsertionExceptionHandler exception =
+upsertionExceptionHandler :: a -> ExceptionHandler m (UpsertionResult a)
+upsertionExceptionHandler x exception =
   case fromException exception of
     Just e@(HttpExceptionRequest _ _) ->
-      do print e ; return $ Left ConnectionException
+      do print e ; return $ Left (ConnectionException x)
 
     e ->
-      do print e ; return $ Left GeneralException
+      do print e ; return $ Left (GeneralException x)
 
 
 type ModificationCount =
   Int
 
 
-data UpsertionException
-  = GeneralException
-  | ConnectionException
-  | InvalidEndpointURLException
+data UpsertionException a
+  = GeneralException a
+  | ConnectionException a
+  | InvalidEndpointURLException a
   deriving (Show, Typeable)
 
 
-instance Exception UpsertionException
+instance (Typeable a, Show a) => Exception (UpsertionException a)
 
 
 type UpsertionResult a =
