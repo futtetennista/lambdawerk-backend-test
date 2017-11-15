@@ -14,7 +14,7 @@ psql -v ON_ERROR_STOP=1 --username="$POSTGRES_USER" --dbname="$POSTGRES_DB" <<-E
 
   ALTER TABLE person ADD PRIMARY KEY (fname,lname,dob);
 
-  CREATE FUNCTION upsert(members json) RETURNS integer
+  CREATE FUNCTION upsert(members json) RETURNS json
   AS \$\$
     DECLARE
       affected_row_count integer;
@@ -26,7 +26,7 @@ psql -v ON_ERROR_STOP=1 --username="$POSTGRES_USER" --dbname="$POSTGRES_DB" <<-E
       WHERE p.phone != EXCLUDED.phone OR p.phone IS null;
 
       GET DIAGNOSTICS affected_row_count = ROW_COUNT;
-      RETURN affected_row_count;
+      RETURN json_build_object('modified_rows',affected_row_count);
     END;
   \$\$ LANGUAGE PLPGSQL VOLATILE STRICT;
 

@@ -1,6 +1,9 @@
+{-# LANGUAGE ScopedTypeVariables #-}
 {-# LANGUAGE RankNTypes #-}
 {-# LANGUAGE DeriveGeneric #-}
 module Database ( UpsertionResult
+                , UpsertionException
+                , ModificationCount
                 , Config(..)
                 , ExceptionHandler
                 , upsert
@@ -23,9 +26,9 @@ import qualified Data.Vector as V
 upsert :: (MonadCatch m, MonadIO m) => Config -> Vector Person -> m UpsertionResult
 upsert config ps =
   handle upsertionExceptionHandler $ do
-    response <- httpLbs =<< mkRequest
+    response :: Response UpsertResponseBody <- httpJSON =<< mkRequest
     if statusIsSuccessful (getResponseStatus response)
-      then return $ Right (V.length ps)
+      then return $ Right (V.length ps, modified_rows (getResponseBody response))
       else return $ Left GeneralException
   where
     mkRequest :: MonadThrow m => m Request
@@ -61,8 +64,8 @@ upsertionExceptionHandler exception =
       do print e ; return $ Left GeneralException
 
 
-type UpsertionResult =
-  Either UpsertionException Int
+type ModificationCount =
+  Int
 
 
 data UpsertionException
@@ -73,6 +76,10 @@ data UpsertionException
 
 
 instance Exception UpsertionException
+
+
+type UpsertionResult a =
+  Either (UpsertionException a) (Int, ModificationCount)
 
 
 data Config =
@@ -91,3 +98,11 @@ data UpsertRequestBody =
 instance JSON.ToJSON UpsertRequestBody where
   toEncoding =
     JSON.genericToEncoding JSON.defaultOptions
+
+
+data UpsertResponseBody =
+  UpsertResponseBody { modified_rows :: Int }
+  deriving (Generic, Show)
+
+
+instance JSON.FromJSON UpsertResponseBody where
