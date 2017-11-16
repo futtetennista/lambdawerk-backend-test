@@ -39,32 +39,23 @@ type Iso8601Date =
 
 
 -- builds a valid person or fail
-mkPerson :: Maybe Text -> Maybe Text -> Maybe Text -> Maybe Text -> Maybe Person
-mkPerson mfn mln md mp =
-  Person <$> checkField "lname" mfn
-    <*> checkField "fname" mln
-    <*> checkField "dob" md
-    <*> checkField "phone" mp
+mkPerson :: Maybe Text -> Maybe Text -> Maybe Text -> Maybe Text -> Person
+mkPerson mfname mlname mdob mphone =
+  Person (checkField "lname" mfname)
+    (checkField "fname" mlname)
+    (checkField "dob" mdob)
+    (checkField "phone" mphone)
   where
-    checkField :: Text -> Maybe Text -> Maybe Text
-    checkField "phone" =
-      (\n -> if T.length n == 10 then Just n else Nothing) . fromMaybe ""
-    checkField "fname" =
-      checkEmpty . fromMaybe ""
-    checkField "lname" =
-      checkEmpty . fromMaybe ""
+    checkField :: Text -> Maybe Text -> Text
     checkField "dob" =
       checkIso8601Date . fromMaybe ""
     checkField _ =
-      return . fromMaybe ""
-
-    checkEmpty xs =
-      if T.null xs then Nothing else Just xs
+      fromMaybe ""
 
 
-checkIso8601Date :: Text -> Maybe Iso8601Date
+checkIso8601Date :: Text -> Iso8601Date
 checkIso8601Date xs =
-  const xs `fmap` parseIso8601Date xs
+  maybe "" (const xs) $ parseIso8601Date xs
   where
     parseIso8601Date :: Text -> Maybe UTCTime
     parseIso8601Date =
@@ -76,24 +67,19 @@ iso8601DateFormatNoTime =
   iso8601DateFormat Nothing
 
 
-parsePerson :: MonadThrow m => Consumer Event m (Maybe Person)
+parsePerson :: (MonadIO m, MonadThrow m) => Consumer Event m (Maybe Person)
 parsePerson =
-  --- this is needed only to "squash" the two `Maybe`s and return the appropriate type
-  join `fmap` consumerMmperson
-    where
-      consumerMmperson :: MonadThrow m => Consumer Event m (Maybe (Maybe Person))
-      consumerMmperson =
-        XML.tagNoAttr "member" $
-          mkPerson <$> content "firstname"
-            <*> content "lastname"
-            <*> content "date-of-birth"
-            <*> content "phone"
-
-      content tag =
-        XML.tagNoAttr tag XML.content
+  XML.tagNoAttr "member" $
+    mkPerson <$> content "firstname"
+      <*> content "lastname"
+      <*> content "date-of-birth"
+      <*> content "phone"
+  where
+    content tag =
+      XML.tagNoAttr tag XML.content
 
 
-parsePeople :: MonadThrow m => Conduit Event m Person
+parsePeople :: (MonadIO m, MonadThrow m) => Conduit Event m Person
 parsePeople =
   void $ XML.tagNoAttr "members" $ XML.manyYield parsePerson
 

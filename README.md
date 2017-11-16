@@ -1,5 +1,19 @@
 # LambdaWerk backend developer test
 
+## Sanitisation data in XML file
+There are some not well-formed data in the XML file, i.e.:
+`"ABD AL", "PIKULSKI", "\\N", "3158419207"`
+my strategy has been to simply saniting it this way:
+`"ABD AL", "PIKULSKI", "", "3158419207"`
+
+Other options would have been:
+- deleting the member from the import set
+- somehow reporting the "impure data"
+- rejecting the whole file
+
+but since the assignment focus wasn't on this and the initial bulk of persons also
+contains such data, I applied the easiest solution I could think of.
+
 ## Considered solutions analysis
 
 ### 1. Reading the whole XML file
