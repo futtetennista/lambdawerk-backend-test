@@ -3,7 +3,7 @@
 module Main (main)
 where
 
-import Protolude hiding (first, second)
+import Protolude
 import Person (Person(..), parseInputFile)
 import Database
 import Stats (mkStats, prettyPrint)
@@ -17,17 +17,22 @@ import Data.Time.Clock (getCurrentTime)
 main :: IO ()
 main = do
   batchSize <- calculateBatchSize
-  filePaths <- getArgs
-  if null filePaths
-    then print ("No input file provided" :: Text)
-    else do
-      mconfig <- configFromEnv
-      case mconfig of
+  args <- getArgs
+  case args of
+    Just [filePaths, batchSize] ->
+      if null filePaths
+      then print ("No input file provided" :: Text)
+      else do
+        mconfig <- configFromEnv
+        case mconfig of
           Nothing ->
             print ("'API_ENDPOINT' or/and 'API_TOKEN' env variables not set. Cannot connect to the db." :: Text)
 
           Just config ->
-            forM_ filePaths (processFile config batchSize)
+            forM_ (args ! 0) (processFile config (args ! 1))
+
+    _ ->
+      print ("Usage: importer /path/to/xml/file batchSize (i.e. 10000)")
     where
       processFile :: Config -> Int -> FilePath -> IO ()
       processFile config batchSize fp = do

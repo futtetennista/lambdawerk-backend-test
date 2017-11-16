@@ -90,7 +90,7 @@ data Config =
   deriving Show
 
 
-data UpsertRequestBody =
+newtype UpsertRequestBody =
   UpsertRequestBody { members :: Vector Person }
   deriving (Generic, Show)
 
@@ -101,7 +101,8 @@ instance JSON.ToJSON UpsertRequestBody where
     JSON.genericToEncoding JSON.defaultOptions
 
 
-data UpsertResponseBody =
+{-# ANN UpsertResponseBody ("HLint: ignore Use camelCase" :: Text) #-}
+newtype UpsertResponseBody =
   UpsertResponseBody { modified_rows :: Int }
   deriving (Generic, Show)
 
