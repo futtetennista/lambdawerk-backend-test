@@ -16,11 +16,10 @@ import Data.Time.Clock (getCurrentTime)
 
 main :: IO ()
 main = do
-  batchSize <- calculateBatchSize
   args <- getArgs
   case args of
-    Just [filePaths, batchSize] ->
-      if null filePaths
+    [filePath, batchSize] ->
+      if null filePath
       then print ("No input file provided" :: Text)
       else do
         mconfig <- configFromEnv
@@ -29,10 +28,15 @@ main = do
             print ("'API_ENDPOINT' or/and 'API_TOKEN' env variables not set. Cannot connect to the db." :: Text)
 
           Just config ->
-            forM_ (args ! 0) (processFile config (args ! 1))
+            case reads batchSize of
+              [(bs, "")] ->
+                processFile config bs filePath
+
+              _ ->
+                printUsage
 
     _ ->
-      print ("Usage: importer /path/to/xml/file batchSize (i.e. 10000)")
+      printUsage
     where
       processFile :: Config -> Int -> FilePath -> IO ()
       processFile config batchSize fp = do
@@ -45,6 +49,9 @@ main = do
         results <- waitAll (upsertionExceptionHandler []) asyncUpsertions
         endTime <- getCurrentTime
         prettyPrint (mkStats (startTime, endTime) results)
+
+      printUsage =
+        print ("Usage: importer /path/to/xml/file batchSize (i.e. 10000)" :: Text)
 
 
 waitAll :: ExceptionHandler IO a -> [Async a] -> IO [a]
@@ -66,10 +73,6 @@ configFromEnv =
 
 
 -- https://stackoverflow.com/questions/3254758/memory-footprint-of-haskell-data-types
-calculateBatchSize :: IO Int
-calculateBatchSize =
-  return 10000
-
 
 execUpsertions :: (MonadBaseControl IO m, MonadIO m)
                => Config
