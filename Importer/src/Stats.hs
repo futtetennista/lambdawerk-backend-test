@@ -16,6 +16,7 @@ data Stats =
         , failures :: [Person]
         , modifications :: Int
         }
+  deriving Show
 
 
 mkStats :: (UTCTime, UTCTime) -> [UpsertionResult [Person]] -> Stats
@@ -32,7 +33,7 @@ mkStats (startTime, endTime) results =
                       -> ([Person], Int, Int)
                       -> ([Person], Int, Int)
     accumulateResults ur (fs, ok, m) =
-      either (\_ -> (fs, ok, n))
+      either (const (fs, ok, n))
              (\(members, mods) -> (fs, ok + members, m + mods))
              ur
 

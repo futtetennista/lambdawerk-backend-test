@@ -67,7 +67,7 @@ ORDER BY fname, lname;
 2. code cleaness
 3. efficiency
    - reading file
-   - executing updates (add indexes?)
+   - executing updates (add indexes? NOPE quite the contrary)
 4. evaluate performance
 
 ## Implementation strategies

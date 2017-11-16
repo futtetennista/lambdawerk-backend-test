@@ -25,7 +25,7 @@ data Person =
          , dob :: Iso8601Date
          , phone :: Text
          }
-  deriving (Show, Generic)
+  deriving (Eq, Show, Generic)
 
 
 -- Automatic (and fast!) decoding to corresponing JSON object
@@ -55,7 +55,7 @@ mkPerson mfname mlname mdob mphone =
 
 checkIso8601Date :: Text -> Iso8601Date
 checkIso8601Date xs =
-  maybe "" (const xs) $ parseIso8601Date xs
+  maybe "-infinity" (const xs) $ parseIso8601Date xs
   where
     parseIso8601Date :: Text -> Maybe UTCTime
     parseIso8601Date =

@@ -26,10 +26,11 @@ import qualified Data.Vector as V
 upsert :: (MonadCatch m, MonadIO m) => Config -> Vector Person -> m (UpsertionResult [Person])
 upsert config ps =
   handle (upsertionExceptionHandler (V.toList ps)) $ do
-    response :: Response UpsertResponseBody <- httpJSON =<< mkRequest
+    response <- httpLbs =<< mkRequest
     if statusIsSuccessful (getResponseStatus response)
-      then return $ Right (V.length ps, modified_rows (getResponseBody response))
-      else return $ Left (GeneralException (V.toList ps))
+      then return $ Right (V.length ps,
+                           maybe 0 modified_rows $ JSON.decode (getResponseBody response))
+      else do print response ; return $ Left (GeneralException (V.toList ps))
   where
     mkRequest :: MonadThrow m => m Request
     mkRequest =

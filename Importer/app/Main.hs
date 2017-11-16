@@ -37,9 +37,9 @@ main = do
         asyncUpsertions <- runConduitRes $
           parseInputFile batchSize fp .| execUpsertions config []
         -- wait for all workers to be done and gather their statistics
-        stats <- waitAll (upsertionExceptionHandler []) asyncUpsertions
+        results <- waitAll (upsertionExceptionHandler []) asyncUpsertions
         endTime <- getCurrentTime
-        prettyPrint (mkStats (startTime, endTime) stats)
+        prettyPrint (mkStats (startTime, endTime) results)
 
 
 waitAll :: ExceptionHandler IO a -> [Async a] -> IO [a]
@@ -48,6 +48,7 @@ waitAll handler =
   where
     tryWait =
       handle handler . wait
+
 
 configFromEnv :: IO (Maybe Config)
 configFromEnv =
@@ -62,7 +63,7 @@ configFromEnv =
 -- https://stackoverflow.com/questions/3254758/memory-footprint-of-haskell-data-types
 calculateBatchSize :: IO Int
 calculateBatchSize =
-  return 1000
+  return 10000
 
 
 execUpsertions :: (MonadBaseControl IO m, MonadIO m)
