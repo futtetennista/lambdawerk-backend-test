@@ -19,6 +19,16 @@ import Data.Time.Clock (UTCTime)
 import GHC.Base (String)
 
 
+{-
+MEMORY COST (in Words aka 8 bytes on 64bits machines):
+  1 (header)
++ 1 + #fname
++ 1 + #lname
++ 1 + 10
++ 1 + 10
+
+where #field is the length of the text field which varies with the input
+-}
 data Person =
   Person { lname :: Text
          , fname :: Text

@@ -72,8 +72,6 @@ configFromEnv =
       return $ Config (pack endpoint) (pack token)
 
 
--- https://stackoverflow.com/questions/3254758/memory-footprint-of-haskell-data-types
-
 execUpsertions :: (MonadBaseControl IO m, MonadIO m)
                => Config
                -> [Async (UpsertionResult [Person])]
