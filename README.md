@@ -30,7 +30,9 @@ database to merge them with the person records in the persons table
 Write a importer and update the persons table in such a way that, for each entry:
   1. if the `phone` in the persons table is equal to the `phone` in the entry
      nothing should be changed in the persons table
-  2. if the entry is not stored in the persons table, a new person record needs
+  2. if the `phone` in the persons table is not equal to the `phone` in the entry
+     it should be changed in the persons table
+  3. if the entry is not stored in the persons table, a new person record needs
      to be created
 
 The importer can be written in a programming language of your choice and the
@@ -92,6 +94,18 @@ that in `Persons.hs:22`
 After some tests I find it to be ???
 
 ### 3. Inserting the entries respecting the given invariants
+
+
+### Benchmarks
+
+#### Merge process implemented using multi-row INSERT
+* batchSize=1000, max_wal_size=1GB => 69.265649s with lots of connection errors
+(postgREST can't keep up apparently)+ logs like 'checkpoints are occurring too
+frequently (29 seconds apart)'
+* batchSize=5000, max_wal_size=2GB => 64.429382s (4-5 req/sec)
+* batchSize=10000, max_wal_size=1GB => 62.356193s (2-3 req/sec)
+* batchSize=10000, max_wal_size=2GB => 61.140297s (2-3 req/sec)
+* batchSize=100000, max_wal_size=1GB => 65.404345s (1 req/~5secs)
 
 ## Assumptions
 - The database is hosted on a remote machine therefore the importer must connect
