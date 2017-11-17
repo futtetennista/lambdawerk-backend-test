@@ -9,7 +9,7 @@ createuser incognito --no-login
 # https://www.postgresql.org/docs/10/static/functions-json.html
 psql -v ON_ERROR_STOP=1 --username="$POSTGRES_USER" --dbname="$POSTGRES_DB" <<-EOSQL
   -- needed to add the PRIMARY KEY constraint
-  UPDATE person SET lname='unknown' WHERE lname IS null;
+  UPDATE person SET lname='_' WHERE lname IS null;
   UPDATE person SET dob='-infinity' WHERE dob IS null;
 
   ALTER TABLE person ADD PRIMARY KEY (fname,lname,dob);
