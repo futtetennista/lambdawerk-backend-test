@@ -4,9 +4,11 @@ module Main (main)
 where
 
 import Protolude
-import Person (Person(..), parseInputFile)
-import Database
-import Stats (mkStats, prettyPrint)
+import Person (Person)
+import qualified Person
+import Database (ExceptionHandler, MergeResult)
+import qualified Database
+import qualified Stats
 import Conduit
 import Data.Vector (Vector)
 import System.Environment (lookupEnv)
@@ -38,20 +40,20 @@ main = do
     _ ->
       printUsage
     where
-      processFile :: Config -> Int -> FilePath -> IO ()
+      processFile :: Database.Config -> Int -> FilePath -> IO ()
       processFile config batchSize fp = do
         putStrLn $ "Processing file: " ++ fp
         -- stream the input file and request UPSERTions asynchronously
         startTime <- getCurrentTime
         asyncUpsertions <- runConduitRes $
-          parseInputFile batchSize fp .| execUpsertions config []
+          Person.parseXMLInputFile batchSize fp .| execUpsertions config []
         -- wait for all workers to be done and gather their statistics
-        results <- waitAll (upsertionExceptionHandler []) asyncUpsertions
+        results <- waitAll (Database.mergeExceptionHandler []) asyncUpsertions
         endTime <- getCurrentTime
-        prettyPrint (mkStats (startTime, endTime) results)
+        Stats.prettyPrint (Stats.mkStats (startTime, endTime) results)
 
       printUsage =
-        print ("Usage: importer /path/to/xml/file batchSize (i.e. 10000)" :: Text)
+        print ("Usage: importer /path/to/xml/file 10000" :: Text)
 
 
 waitAll :: ExceptionHandler IO a -> [Async a] -> IO [a]
@@ -62,20 +64,20 @@ waitAll handler =
       handle handler . wait
 
 
-configFromEnv :: IO (Maybe Config)
+configFromEnv :: IO (Maybe Database.Config)
 configFromEnv =
   liftA2 mkMaybeConfig (lookupEnv "API_ENDPOINT") (lookupEnv "API_TOKEN")
   where
     mkMaybeConfig mendpoint mtoken = do
       endpoint <- mendpoint
       token <- mtoken
-      return $ Config (pack endpoint) (pack token)
+      return $ Database.Config (pack endpoint) (pack token)
 
 
 execUpsertions :: (MonadBaseControl IO m, MonadIO m)
-               => Config
-               -> [Async (UpsertionResult [Person])]
-               -> Consumer (Vector Person) (ResourceT m) [Async (UpsertionResult [Person])]
+               => Database.Config
+               -> [Async (MergeResult [Person])]
+               -> Consumer (Vector Person) (ResourceT m) [Async (MergeResult [Person])]
 execUpsertions config asyncUpsertions = do
   mpersons <- await
   case mpersons of
@@ -90,6 +92,6 @@ execUpsertions config asyncUpsertions = do
       return asyncUpsertions
 
     execUpsertion persons = do
-      asyncUpsertion <- liftIO $ async (upsert config persons)
+      asyncUpsertion <- liftIO $ async (Database.merge config persons)
       return $ asyncUpsertion : asyncUpsertions
       -- liftA2 (:) (liftIO $ async (upsert personBatch)) (pure asyncUpsertions)

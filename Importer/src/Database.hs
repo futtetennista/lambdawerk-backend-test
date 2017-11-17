@@ -1,13 +1,13 @@
 {-# LANGUAGE ScopedTypeVariables #-}
 {-# LANGUAGE RankNTypes #-}
 {-# LANGUAGE DeriveGeneric #-}
-module Database ( UpsertionResult
-                , UpsertionException
-                , ModificationCount
+module Database ( MergeResult
+                , MergeException
+                , RowStats
                 , Config(..)
                 , ExceptionHandler
-                , upsert
-                , upsertionExceptionHandler
+                , merge
+                , mergeExceptionHandler
                 )
 where
 
@@ -23,9 +23,9 @@ import qualified Data.Aeson as JSON
 import qualified Data.Vector as V
 
 
-upsert :: (MonadCatch m, MonadIO m) => Config -> Vector Person -> m (UpsertionResult [Person])
-upsert config ps =
-  handle (upsertionExceptionHandler (V.toList ps)) $ do
+merge :: (MonadCatch m, MonadIO m) => Config -> Vector Person -> m (MergeResult [Person])
+merge config ps =
+  handle (mergeExceptionHandler (V.toList ps)) $ do
     response <- httpLbs =<< mkRequest
     if statusIsSuccessful (getResponseStatus response)
       then return $ Right (V.length ps,
@@ -40,7 +40,7 @@ upsert config ps =
 
         Just url ->
           (setRequestMethod "POST" .
-           setRequestBodyJSON (UpsertRequestBody ps) .
+           setRequestBodyJSON (MergeRequestBody ps) .
            addRequestHeader "User-Agent" "importer/0.0.1" .
            addRequestHeader "Authorization" ("Bearer " <> configJWT config))
           `fmap` parseRequest (exportURL url)
@@ -55,8 +55,8 @@ type ExceptionHandler m a =
   (MonadCatch m, MonadIO m) => SomeException -> m a
 
 
-upsertionExceptionHandler :: a -> ExceptionHandler m (UpsertionResult a)
-upsertionExceptionHandler x exception =
+mergeExceptionHandler :: a -> ExceptionHandler m (MergeResult a)
+mergeExceptionHandler x exception =
   case fromException exception of
     Just e@(HttpExceptionRequest _ _) ->
       do print e ; return $ Left (ConnectionException x)
@@ -65,22 +65,22 @@ upsertionExceptionHandler x exception =
       do print e ; return $ Left (GeneralException x)
 
 
-type ModificationCount =
+type RowStats =
   Int
 
 
-data UpsertionException a
+data MergeException a
   = GeneralException a
   | ConnectionException a
   | InvalidEndpointURLException a
   deriving (Show, Typeable)
 
 
-instance (Typeable a, Show a) => Exception (UpsertionException a)
+instance (Typeable a, Show a) => Exception (MergeException a)
 
 
-type UpsertionResult a =
-  Either (UpsertionException a) (Int, ModificationCount)
+type MergeResult a =
+  Either (MergeException a) (Int, RowStats)
 
 
 data Config =
@@ -90,21 +90,21 @@ data Config =
   deriving Show
 
 
-newtype UpsertRequestBody =
-  UpsertRequestBody { members :: Vector Person }
+newtype MergeRequestBody =
+  MergeRequestBody { entries :: Vector Person }
   deriving (Generic, Show)
 
 
 -- Automatic (and fast!) decoding to corresponding JSON object
-instance JSON.ToJSON UpsertRequestBody where
+instance JSON.ToJSON MergeRequestBody where
   toEncoding =
     JSON.genericToEncoding JSON.defaultOptions
 
 
-{-# ANN UpsertResponseBody ("HLint: ignore Use camelCase" :: Text) #-}
-newtype UpsertResponseBody =
-  UpsertResponseBody { row_stats :: Int }
+{-# ANN MergeResponseBody ("HLint: ignore Use camelCase" :: Text) #-}
+newtype MergeResponseBody =
+  MergeResponseBody { row_stats :: Int }
   deriving (Generic, Show)
 
 
-instance JSON.FromJSON UpsertResponseBody where
+instance JSON.FromJSON MergeResponseBody where

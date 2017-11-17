@@ -14,7 +14,7 @@ psql -v ON_ERROR_STOP=1 --username="$POSTGRES_USER" --dbname="$POSTGRES_DB" <<-E
 
   ALTER TABLE person ADD PRIMARY KEY (fname,lname,dob);
 
-  CREATE FUNCTION upsert(members json) RETURNS json
+  CREATE FUNCTION merge(entries json) RETURNS json
   AS \$\$
     DECLARE
       row_stats integer;

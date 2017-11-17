@@ -6,7 +6,7 @@ where
 
 import Lib.Prelude
 import Person (Person)
-import Database (UpsertionResult)
+import Database (MergeResult)
 import Data.Time.Clock (UTCTime, NominalDiffTime, diffUTCTime)
 
 
@@ -19,7 +19,7 @@ data Stats =
   deriving Show
 
 
-mkStats :: (UTCTime, UTCTime) -> [UpsertionResult [Person]] -> Stats
+mkStats :: (UTCTime, UTCTime) -> [MergeResult [Person]] -> Stats
 mkStats (startTime, endTime) results =
   Stats totalTime oks kos n
   where
@@ -29,7 +29,7 @@ mkStats (startTime, endTime) results =
     (kos, oks, n) =
       foldr accumulateResults ([], 0, 0) results
 
-    accumulateResults :: UpsertionResult [Person]
+    accumulateResults :: MergeResult [Person]
                       -> ([Person], Int, Int)
                       -> ([Person], Int, Int)
     accumulateResults ur (fs, ok, m) =

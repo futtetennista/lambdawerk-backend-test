@@ -1,7 +1,7 @@
 {-# LANGUAGE DeriveGeneric #-}
 {-# LANGUAGE RankNTypes #-}
 module Person ( Person(..)
-              , parseInputFile
+              , parseXMLInputFile
               )
 where
 
@@ -94,8 +94,8 @@ parsePeople =
   void $ XML.tagNoAttr "members" $ XML.manyYield parsePerson
 
 
-parseInputFile :: Int -> FilePath -> Producer (ResourceT IO) (Vector Person)
-parseInputFile batchSize fp =
+parseXMLInputFile :: Int -> FilePath -> Producer (ResourceT IO) (Vector Person)
+parseXMLInputFile batchSize fp =
   XML.parseFile XML.def fp
     .| parsePeople
     .| conduitVector batchSize
