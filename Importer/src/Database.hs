@@ -95,7 +95,7 @@ newtype UpsertRequestBody =
   deriving (Generic, Show)
 
 
--- Automatic (and fast!) decoding to corresponing JSON object
+-- Automatic (and fast!) decoding to corresponding JSON object
 instance JSON.ToJSON UpsertRequestBody where
   toEncoding =
     JSON.genericToEncoding JSON.defaultOptions

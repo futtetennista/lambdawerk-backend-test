@@ -38,7 +38,7 @@ data Person =
   deriving (Eq, Show, Generic)
 
 
--- Automatic (and fast!) decoding to corresponing JSON object
+-- Automatic (and fast!) decoding to corresponding JSON object
 instance JSON.ToJSON Person where
   toEncoding =
     JSON.genericToEncoding JSON.defaultOptions
