@@ -29,7 +29,7 @@ upsert config ps =
     response <- httpLbs =<< mkRequest
     if statusIsSuccessful (getResponseStatus response)
       then return $ Right (V.length ps,
-                           maybe 0 modified_rows $ JSON.decode (getResponseBody response))
+                           maybe 0 row_stats $ JSON.decode (getResponseBody response))
       else do print response ; return $ Left (GeneralException (V.toList ps))
   where
     mkRequest :: MonadThrow m => m Request
@@ -103,7 +103,7 @@ instance JSON.ToJSON UpsertRequestBody where
 
 {-# ANN UpsertResponseBody ("HLint: ignore Use camelCase" :: Text) #-}
 newtype UpsertResponseBody =
-  UpsertResponseBody { modified_rows :: Int }
+  UpsertResponseBody { row_stats :: Int }
   deriving (Generic, Show)
 
 

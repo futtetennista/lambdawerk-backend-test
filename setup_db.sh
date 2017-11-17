@@ -17,7 +17,7 @@ psql -v ON_ERROR_STOP=1 --username="$POSTGRES_USER" --dbname="$POSTGRES_DB" <<-E
   CREATE FUNCTION upsert(members json) RETURNS json
   AS \$\$
     DECLARE
-      affected_row_count integer;
+      row_stats integer;
     BEGIN
       INSERT INTO person AS p
       SELECT * FROM json_populate_recordset(null::person,members)
@@ -26,7 +26,7 @@ psql -v ON_ERROR_STOP=1 --username="$POSTGRES_USER" --dbname="$POSTGRES_DB" <<-E
       WHERE p.phone != EXCLUDED.phone OR p.phone IS null;
 
       GET DIAGNOSTICS affected_row_count = ROW_COUNT;
-      RETURN json_build_object('modified_rows',affected_row_count);
+      RETURN json_build_object('row_stats',row_stats);
     END;
   \$\$ LANGUAGE PLPGSQL VOLATILE STRICT;
 
