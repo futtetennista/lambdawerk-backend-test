@@ -48,7 +48,7 @@ merge config ps =
 
     murl :: Maybe URL
     murl =
-      importURL . unpack $ configDBEndpointURL config <> "/rpc/upsert"
+      importURL . unpack $ configDBEndpointURL config <> "/rpc/merge"
 
 
 type ExceptionHandler m a =

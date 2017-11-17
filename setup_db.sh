@@ -20,12 +20,12 @@ psql -v ON_ERROR_STOP=1 --username="$POSTGRES_USER" --dbname="$POSTGRES_DB" <<-E
       row_stats integer;
     BEGIN
       INSERT INTO person AS p
-      SELECT * FROM json_populate_recordset(null::person,members)
+      SELECT * FROM json_populate_recordset(null::person,entries)
       ON CONFLICT (fname,lname,dob) DO UPDATE
       SET phone = EXCLUDED.phone
       WHERE p.phone != EXCLUDED.phone OR p.phone IS null;
 
-      GET DIAGNOSTICS affected_row_count = ROW_COUNT;
+      GET DIAGNOSTICS row_stats = ROW_COUNT;
       RETURN json_build_object('row_stats',row_stats);
     END;
   \$\$ LANGUAGE PLPGSQL VOLATILE STRICT;
