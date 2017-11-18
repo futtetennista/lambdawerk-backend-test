@@ -70,7 +70,7 @@ manually or also packaged in a Docker container.
 I divided the problem into three sub-problems:
 1. reading and parsing the XML input file
 2. serialising the content of the XML input file
-3. inserting the entries respecting the given invariants
+3. merging entries respecting the given invariants
 
 To achieve a *clean* architecture I my design decision early on has been to give
 the importer will be responsable for 1., the database for 3. and to make them
@@ -91,28 +91,67 @@ When choosing a `batchSize` one should consider at least the following factors:
 that in `Persons.hs:22`
 - the optimal batch size for multi-row `INSERT`s in PostgreSQL
 
-After some tests I find it to be ???
+### 3. Merging entries respecting the given invariants
+The database is responsanble for merging entries supplied by the importer in a
+correct and efficient way. I explored various possibilities:
+* `SELECT`ing person records one-by-one and checking the invariants is hopelessly slow
+* conditional `UPDATE`s don't cover the case of new person records
+* `INSERT`ing using the `ON CONFLICT` clause looked promising since it's basically
+what the invariants describe. The only catch here is that the `conflict_target`
+must be unique. That meant adding a `PRIMARY KEY` constraint to the persons table.
 
-### 3. Inserting the entries respecting the given invariants
+Ultimately I decided to implement the last option. When the database is created
+the persons table is `ALTER`ed to add a `PRIMARY KEY` but that lead to another
+issue: 257 person records are not well-formed. The "Assumptions" and
+"Sanitising data in XML input file" sections talk about how I decided to tackle
+this. The final SQL statement to merge entries looks like the following:
 
+``` SQL
+DECLARE
+  row_stats integer;
+BEGIN
+  INSERT INTO person AS p
+  SELECT * FROM json_populate_recordset(null::person,entries)
+  ON CONFLICT (fname,lname,dob) DO UPDATE
+  SET phone = EXCLUDED.phone
+  WHERE p.phone != EXCLUDED.phone OR p.phone IS null;
 
-### Benchmarks
+  GET DIAGNOSTICS row_stats = ROW_COUNT;
+  RETURN json_build_object('row_stats',row_stats);
+END;
+```
 
-#### Merge process implemented using multi-row INSERT
-* batchSize=1000, max_wal_size=1GB => 69.265649s with lots of connection errors
-(postgREST can't keep up apparently)+ logs like 'checkpoints are occurring too
-frequently (29 seconds apart)'
-* batchSize=5000, max_wal_size=2GB => 64.429382s (4-5 req/sec)
+It uses `PL/pgSQL` to be able to return basic statistics about the affected
+person records in the database back to the importer.
+
+### Profiling and benchmarks
+
+I run these benchmarks on my laptop: MacBook Pro (Retina, 15-inch, Mid 2015),
+2,5 GHz Intel Core i7, 16 GB 1600 MHz DDR3. First I did some tests playing
+around with different batch size to check how that impacted performance:
+
+* batchSize=1000, max_wal_size=1GB => 69.265649s (lots of connection errors:
+postgREST can't keep up apparently)
 * batchSize=10000, max_wal_size=1GB => 62.356193s (2-3 req/sec)
-* batchSize=10000, max_wal_size=2GB => 61.140297s (2-3 req/sec)
 * batchSize=100000, max_wal_size=1GB => 65.404345s (1 req/~5secs)
+
+Looking at PostgreSQL logs I noticed lots of warnings like
+`checkpoints are occurring too frequently (29 seconds apart)` so I configured
+PostgreSQL to use a bigger `max_wal_size`:
+
+* batchSize=2000, max_wal_size=2GB => 61.797248s (20+ req/sec)
+* batchSize=5000, max_wal_size=2GB => 64.429382s (4-5 req/sec)
+* batchSize=10000, max_wal_size=2GB => 61.140297s (2-3 req/sec)
+
+The warnings were gone but the running time of the merge process wasn't
+changed.
 
 ## Assumptions
 - The database is hosted on a remote machine therefore the importer must connect
 to it over the internet.
 - Creating the persons table is a one-time task and the one-time costs to pay
-upfront to sanitise the person records (see below) so that a PRIMARY KEY
-constraint can be created are acceptable costs. A PRIMARY KEY constraint is added
+upfront to sanitise the person records (see below) so that a `PRIMARY KEY`
+constraint can be created are acceptable costs. A `PRIMARY KEY` constraint is added
 because is generally a good practice to have it and allows to implement the merge
 process conveniently.
 - Removing the 267 entries that do not have either a last name or a birthdate is
@@ -135,7 +174,6 @@ are also not well-formed, I applied the easiest solution I could think of.
 ### Default values
 - `dob`: `-infinity`
 - `lname`, `fname`: `_` (in Haskell `_` means: "ignore this")
-
 
 
 ## Considered solutions analysis
@@ -183,14 +221,17 @@ load on the database
 - Docker
 - the Stack build tool to use Haskell and install all needed dependencies
 
-### Environment variables
-- To set the environment variables needed for the PostgreSQL instance,
+### Security
+Components need some configurations parameters that need to be supplied via
+environment variables, specifically:
+
+- to set the environment variables needed for the PostgreSQL instance,
 create a file named `postgres.env` and provide values for the following variables:
   * `POSTGRES_DB`
   * `POSTGRES_USER`
   * `POSTGRES_PASSWORD`
-  Have a look at the sample file `postgres.env.sample`
-- To set the environment variables needed for the PostgRESTL instance,
+  have a look at the sample file `postgres.env.sample`
+- to set the environment variables needed for the PostgRESTL instance,
 create a file named `postgREST.env` and provide values for the following variables:
   * `PGRST_DB_URI` of the form:
   `postgres://[POSTGRES_USER]:[POSTGRES_PASSWORD]@postgres_container_alias:5432/[POSTGRES_DB]`
@@ -198,10 +239,10 @@ create a file named `postgREST.env` and provide values for the following variabl
   * `PGRST_DB_ANON_ROLE`
   * `PGRST_SERVER_PROXY_URI`
   * `PGRST_JWT_SECRET`
-  Have a look at the sample file `postgREST.env.sample` and `rsa.jwk.pub.sample`.
+  have a look at the sample file `postgREST.env.sample` and `rsa.jwk.pub.sample`.
   The latter contains a sample secret that can be set as `PGRST_JWT_SECRET`
   and to generate JWT tokens to use as `API_TOKEN`
-- The environment variables needed for the importer are:
+- the environment variables needed for the importer are:
   * `API_ENDPOINT`
   * `API_TOKEN`
 
