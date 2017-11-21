@@ -28,8 +28,12 @@ merge config ps =
   handle (mergeExceptionHandler (V.toList ps)) $ do
     response <- httpLbs =<< mkRequest
     if statusIsSuccessful (getResponseStatus response)
-      then return $ Right (V.length ps,
-                           maybe 0 row_stats $ JSON.decode (getResponseBody response))
+      then
+        let
+          mdecodedResponseBody =
+            JSON.decode (getResponseBody response)
+         in
+          return $ Right (V.length ps, maybe 0 row_stats mdecodedResponseBody)
       else do print response ; return $ Left (GeneralException (V.toList ps))
   where
     mkRequest :: MonadThrow m => m Request
@@ -45,7 +49,7 @@ merge config ps =
            addRequestHeader "Authorization" ("Bearer " <> configJWT config))
           `fmap` parseRequest (exportURL url)
 
-
+    -- take into account the possibility that the supplied URL is invalid
     murl :: Maybe URL
     murl =
       importURL . unpack $ configDBEndpointURL config <> "/rpc/merge"
