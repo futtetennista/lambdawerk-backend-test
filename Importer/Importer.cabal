@@ -16,6 +16,7 @@ cabal-version:       >=1.10
 library
   hs-source-dirs:      src
   ghc-options:         -Wall
+                       -O2
   exposed-modules:     Person
                      , Database
                      , Stats
@@ -41,7 +42,11 @@ library
 executable importer
   hs-source-dirs:      app
   main-is:             Main.hs
-  ghc-options:         -Wall -threaded -rtsopts -with-rtsopts=-N
+  ghc-options:         -Wall
+                       -threaded
+                       -rtsopts
+                       -with-rtsopts=-N
+                       -O2
   build-depends:       base
                      , Importer
                      , protolude
