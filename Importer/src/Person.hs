@@ -1,6 +1,6 @@
 {-# LANGUAGE DeriveGeneric #-}
 {-# LANGUAGE RankNTypes #-}
-{-# LANGUAGE QuasiQuotes #-}
+-- {-# LANGUAGE QuasiQuotes #-}
 module Person ( Person(..)
               , parseXMLInputFile
               )
@@ -9,7 +9,7 @@ where
 import Lib.Prelude
 import qualified Text.XML.Stream.Parse as XML
 -- import qualified Text.XML.Stream.Render as XMLRender
-import Text.Hamlet.XML (xml)
+-- import Text.Hamlet.XML (xml)
 import Data.XML.Types (Event(..))
 import Conduit
 import Data.Maybe (fromMaybe)
@@ -101,18 +101,17 @@ parseXMLInputFile :: Int -> FilePath -> Producer (ResourceT IO) (Vector Person)
 parseXMLInputFile batchSize fp =
   XML.parseFile XML.def fp
     .| parseEntries
-    .| takeC 50000
     .| conduitVector batchSize
 
 
-entry p =
-  [xml|
-<member>
-  <firstname> fname p
-  <lastname> lname p
-  <date-of-birth> dob p
-  <phone> phone p
-|]
+-- entry p =
+--   [xml|
+-- <member>
+--   <firstname> fname p
+--   <lastname> lname p
+--   <date-of-birth> dob p
+--   <phone> phone p
+-- |]
 
 
 -- renderFailedEntries :: Conduit Event m XMLRender.Builder
