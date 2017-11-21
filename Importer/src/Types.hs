@@ -4,11 +4,6 @@ module Types
 where
 
 import Lib.Prelude
-import Control.Exception.Safe (MonadCatch)
-
-
-type ExceptionHandler m a b =
-  (MonadCatch m, MonadIO m) => ImporterException a -> m b
 
 
 type RowStats =

@@ -5,7 +5,7 @@ module Main (main)
 where
 
 import Protolude
-import Types -- (ImporterResult, ExceptionHandler, exceptionData)
+import Types (ImporterResult, exceptionData)
 import Person (Person)
 import qualified Person
 import qualified Database
