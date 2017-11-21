@@ -107,10 +107,10 @@ manyExecUpsertions config =
     --          => Async (ImporterResult (ImporterException (Vector Person)))
     --          -> m (ImporterResult Int)
     safeWait a =
-      either storeEntry strictSuccess =<< wait a
+      either storeEntry strictSuccess `fmap` wait a
 
     strictSuccess (!x, !y) =
-      return $ Right (x, y)
+      Right (x, y)
 
     storeEntry ex =
       let
@@ -121,4 +121,4 @@ manyExecUpsertions config =
           V.length ps
       -- TODO: write entries to "update-failed.xml" file
       in
-        return $ Left l
+        Left l
