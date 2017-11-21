@@ -31,7 +31,9 @@ main = do
 
           Just config ->
             case reads batchSize of
-              [(bs, "")] ->
+              [(bs, "")] -> do
+                print ("Config: " <> show config :: Text)
+                print ("Batch size: " <> show bs :: Text)
                 processFile config bs filePath
 
               _ ->
