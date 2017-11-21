@@ -87,14 +87,14 @@ manyExecUpsertions :: (MonadBaseControl IO m, MonadIO m, MonadCatch m)
 manyExecUpsertions config =
   fix $ \loop -> maybe done (\xs -> yieldExecResult xs >> loop) =<< await
   where
-    -- done :: (MonadBaseControl IO m, MonadIO m, MonadCatch m)
-    --      => Conduit (Vector Person) (ResourceT m) (ImporterResult Int)
+    done :: (MonadBaseControl IO m, MonadIO m, MonadCatch m)
+         => Conduit (Vector Person) (ResourceT m) (ImporterResult Int)
     done =
       return ()
 
-    -- yieldExecResult :: (MonadBaseControl IO m, MonadIO m, MonadCatch m)
-    --                 => Vector Person
-    --                 -> Conduit (Vector Person) (ResourceT m) (ImporterResult Int)
+    yieldExecResult :: (MonadBaseControl IO m, MonadIO m, MonadCatch m)
+                    => Vector Person
+                    -> Conduit (Vector Person) (ResourceT m) (ImporterResult Int)
     yieldExecResult persons =
       yield =<< liftIO (execMerge persons)
 
