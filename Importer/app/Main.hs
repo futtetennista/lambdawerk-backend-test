@@ -65,20 +65,22 @@ configFromEnv =
 processFile :: (MonadBaseControl IO m, MonadIO m, MonadCatch m)
             => Database.Config -> Int -> FilePath -> m ()
 processFile config batchSize fp = do
-  -- stream the input file and request UPSERTions asynchronously
   startTime <- liftIO getCurrentTime
   results <- runMerge batchSize config fp
   endTime <- liftIO getCurrentTime
   Stats.prettyPrint (Stats.mkStats (startTime, endTime) results)
 
 
+-- The merge process is asynchronous and runs in constant memory:
+-- each time `batchSize` entries are read from the XML input file
+-- a new merge action is executed
 runMerge :: (MonadBaseControl IO m, MonadIO m, MonadCatch m)
          => Int -> Database.Config -> FilePath -> m [ImporterResult Int]
 runMerge batchSize config fp =
   liftIO . runConduitRes $
     Person.parseXMLInputFile batchSize fp
-    .| manyExecUpsertions config
-    .| sinkList
+      .| manyExecUpsertions config
+      .| sinkList
 
 
 manyExecUpsertions :: (MonadBaseControl IO m, MonadIO m, MonadCatch m)
@@ -103,23 +105,23 @@ manyExecUpsertions config =
     --           -> m (ImporterResult Int)
     execMerge persons =
       safeWait =<< async (Database.merge config persons)
+      where
+        -- safeWait :: (MonadBaseControl IO m, MonadIO m, MonadCatch m)
+        --          => Async (ImporterResult (ImporterException (Vector Person)))
+        --          -> m (ImporterResult Int)
+        safeWait a =
+          either storeEntry strictSuccess =<< wait a
 
-    -- safeWait :: (MonadBaseControl IO m, MonadIO m, MonadCatch m)
-    --          => Async (ImporterResult (ImporterException (Vector Person)))
-    --          -> m (ImporterResult Int)
-    safeWait a =
-      either storeEntry strictSuccess =<< wait a
+        strictSuccess (!x, !y) =
+          return $ Right (x, y)
 
-    strictSuccess (!x, !y) =
-      return $ Right (x, y)
+        storeEntry ex =
+          let
+            ps =
+              Types.exceptionData ex
 
-    storeEntry ex =
-      let
-        ps =
-          Types.exceptionData ex
-
-        !l =
-          V.length ps
-      -- TODO: write entries to "update-failed.xml" file
-      in
-        return $ Left l
+            !l =
+              V.length ps
+          -- TODO: write entries to "update-failed.xml" file
+          in
+            return $ Left l

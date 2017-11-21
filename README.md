@@ -146,7 +146,42 @@ PostgreSQL to use a bigger `max_wal_size`:
 The warnings were gone but the running time of the merge process wasn't
 changed.
 
-## Assumptions
+Changing the batch size didn't seem to affect the total running time of the merge
+process. In order to make it run quicker I could think of two strategies:
+
+1. make the SQL in the database more efficient
+2. make the parsing/serialising in the parser more efficient
+
+Let's start with the database:
+1. sending the entries to the database: there is going to be some I/O involved,
+I tried tuning that by changing the batch size already and didn't really get
+anything out of it
+2. deserialisation of the input: this is internal to the database and
+it cannot be optimised as far as I know
+3. optimising the SQL statement: the statement is a database function that is a
+stored procedure. It's already compiled and optimised by the database query planner.
+The index on the `PRIMARY KEY` slows `INSERT`ions down but it cannot be removed
+since the constraint is needed for `ON CONFLICT` to work. Tuning some database
+settings is also an option, I explored changing `max_wal_size` but didn't get any
+perfomance gains
+4. hardware: this is out of the scope of the assignment
+5. serialisation of the output: the database return a minimal response and I don't
+see this as a bottleneck
+
+I didn't walk this road too long because from my tests it didn't seem like the
+database couldn't keep up the tasks given. So I went to the importer with the
+goal of raising the number of requests per second that it could send to the
+database focusing on:
+1. deserialisation of the entries in the XML input file
+2. serialisation of the entries into JSON
+3. deserialisation of the database response
+
+Here things got more interesting: while profiling the importer to optimise its
+running time I actually found a memory leak that prevented it from running in
+constant memory and fixed it. The files `importer-memleak.ps` and `importer-nomemleak.ps`
+show the situation before and after for a reduced number of entries (50000).
+
+## General assumptions
 - The database is hosted on a remote machine therefore the importer must connect
 to it over the internet.
 - Creating the persons table is a one-time task and the one-time costs to pay
@@ -221,7 +256,7 @@ load on the database
 - Docker
 - the Stack build tool to use Haskell and install all needed dependencies
 
-### Security
+### Configuration
 Components need some configurations parameters that need to be supplied via
 environment variables, specifically:
 
