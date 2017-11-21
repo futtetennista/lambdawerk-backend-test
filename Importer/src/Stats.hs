@@ -35,7 +35,7 @@ mkStats (startTime, endTime) results =
              res
 
 
-prettyPrint :: Stats -> IO ()
+prettyPrint :: MonadIO m => Stats -> m ()
 prettyPrint stats = do
   print ("import took " <> show (duration stats) :: Text)
   print ("Failures: " <> show (failures stats)

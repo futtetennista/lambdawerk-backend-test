@@ -17,6 +17,7 @@ import System.Environment (lookupEnv)
 import Data.ByteString.Char8 (pack)
 import Data.Time.Clock (getCurrentTime)
 import Control.Exception.Safe
+import Control.Monad.Fix (fix)
 
 
 main :: IO ()
@@ -37,6 +38,7 @@ main = do
               [(bs, "")] -> do
                 print ("Config: " <> show config :: Text)
                 print ("Batch size: " <> show bs :: Text)
+                print ("Processing file: " ++ filePath :: [Char])
                 processFile config bs filePath
 
               _ ->
@@ -45,48 +47,8 @@ main = do
     _ ->
       printUsage
     where
-      processFile :: Database.Config -> Int -> FilePath -> IO ()
-      processFile config batchSize fp = do
-        putStrLn $ "Processing file: " ++ fp
-        -- stream the input file and request UPSERTions asynchronously
-        startTime <- getCurrentTime
-        asyncUpsertions <- runConduitRes $
-          Person.parseXMLInputFile batchSize fp .| manyExecUpsertions config []
-        -- wait for all workers to be done and gather their statistics
-        results <- waitAll asyncUpsertions
-        endTime <- getCurrentTime
-        Stats.prettyPrint (Stats.mkStats (startTime, endTime) results)
-
       printUsage =
         print ("Usage: importer /path/to/xml/file 10000" :: Text)
-
-
-waitAll :: [IO (ImporterResult (ImporterException (Vector Person)))]
-        -> IO [ImporterResult Int]
-waitAll as =
-  mapConcurrently safeWait as
-  where
-    safeWait :: IO (ImporterResult (ImporterException (Vector Person)))
-             -> IO (ImporterResult Int)
-    safeWait a = do
-      print ("STARTEd"::Text)
-      a' <- a
-      either storeEntry strictSuccess a'
-
-    strictSuccess (!x, !y) = do
-      print $ ("DONE" :: Text)
-      return $ Right (x, y)
-
-    storeEntry ex =
-      let
-        ps =
-          Types.exceptionData ex
-
-        !l =
-          V.length ps
-      -- TODO: write entries to "update-failed.xml" file
-      in
-        return $ Left l
 
 
 configFromEnv :: IO (Maybe Database.Config)
@@ -99,22 +61,64 @@ configFromEnv =
       return $ Database.Config (pack endpoint) (pack token)
 
 
+processFile :: (MonadBaseControl IO m, MonadIO m, MonadCatch m)
+            => Database.Config -> Int -> FilePath -> m ()
+processFile config batchSize fp = do
+  -- stream the input file and request UPSERTions asynchronously
+  startTime <- liftIO getCurrentTime
+  results <- runMerge batchSize config fp
+  endTime <- liftIO getCurrentTime
+  Stats.prettyPrint (Stats.mkStats (startTime, endTime) results)
+
+
+runMerge :: (MonadBaseControl IO m, MonadIO m, MonadCatch m)
+         => Int -> Database.Config -> FilePath -> m [ImporterResult Int]
+runMerge batchSize config fp =
+  liftIO . runConduitRes $
+    Person.parseXMLInputFile batchSize fp
+    .| manyExecUpsertions config
+    .| sinkList
+
+
 manyExecUpsertions :: (MonadBaseControl IO m, MonadIO m, MonadCatch m)
-               => Database.Config
-               -> [m (ImporterResult (ImporterException (Vector Person)))]
-               -> Consumer (Vector Person) (ResourceT m) [m (ImporterResult (ImporterException (Vector Person)))]
-manyExecUpsertions config asyncUpsertions = do
-  mpersons <- await
-  case mpersons of
-    Nothing ->
-      done
-
-    Just persons ->
-      -- process this batch and loop
-      manyExecUpsertions config =<< execUpsertion persons
+                   => Database.Config
+                   -> Conduit (Vector Person) (ResourceT m) (ImporterResult Int)
+manyExecUpsertions config =
+  fix $ \loop -> maybe done (\xs -> yieldExecResult xs >> loop) =<< await
   where
+    -- done :: (MonadBaseControl IO m, MonadIO m, MonadCatch m)
+    --      => Conduit (Vector Person) (ResourceT m) (ImporterResult Int)
     done =
-      return asyncUpsertions
+      return ()
 
-    execUpsertion persons =
-      return $ (Database.merge config persons) : asyncUpsertions
+    -- yieldExecResult :: (MonadBaseControl IO m, MonadIO m, MonadCatch m)
+    --                 => Vector Person
+    --                 -> Conduit (Vector Person) (ResourceT m) (ImporterResult Int)
+    yieldExecResult persons =
+      yield =<< liftIO (execMerge persons)
+
+    -- execMerge :: (MonadBaseControl IO m, MonadIO m, MonadCatch m)
+    --           => Vector Person
+    --           -> m (ImporterResult Int)
+    execMerge persons =
+      safeWait =<< async (Database.merge config persons)
+
+    -- safeWait :: (MonadBaseControl IO m, MonadIO m, MonadCatch m)
+    --          => Async (ImporterResult (ImporterException (Vector Person)))
+    --          -> m (ImporterResult Int)
+    safeWait a =
+      either storeEntry strictSuccess =<< wait a
+
+    strictSuccess (!x, !y) =
+      return $ Right (x, y)
+
+    storeEntry ex =
+      let
+        ps =
+          Types.exceptionData ex
+
+        !l =
+          V.length ps
+      -- TODO: write entries to "update-failed.xml" file
+      in
+        return $ Left l
