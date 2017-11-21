@@ -1,3 +1,4 @@
+{-# LANGUAGE BangPatterns #-}
 {-# LANGUAGE RankNTypes #-}
 {-# LANGUAGE FlexibleContexts #-}
 module Main (main)
@@ -15,6 +16,7 @@ import qualified Data.Vector as V
 import System.Environment (lookupEnv)
 import Data.ByteString.Char8 (pack)
 import Data.Time.Clock (getCurrentTime)
+import Control.Exception.Safe
 
 
 main :: IO ()
@@ -49,7 +51,7 @@ main = do
         -- stream the input file and request UPSERTions asynchronously
         startTime <- getCurrentTime
         asyncUpsertions <- runConduitRes $
-          Person.parseXMLInputFile batchSize fp .| execUpsertions config []
+          Person.parseXMLInputFile batchSize fp .| manyExecUpsertions config []
         -- wait for all workers to be done and gather their statistics
         results <- waitAll asyncUpsertions
         endTime <- getCurrentTime
@@ -59,20 +61,32 @@ main = do
         print ("Usage: importer /path/to/xml/file 10000" :: Text)
 
 
-waitAll :: [Async (ImporterResult (ImporterException (Vector Person)))]
+waitAll :: [IO (ImporterResult (ImporterException (Vector Person)))]
         -> IO [ImporterResult Int]
-waitAll =
-  foldr (liftA2 (:) . safeWait) (return [])
+waitAll as =
+  mapConcurrently safeWait as
   where
-    safeWait :: Async (ImporterResult (ImporterException (Vector Person)))
-            -> IO (ImporterResult Int)
-    safeWait a =
-      either handler (return . Right) =<< wait a
+    safeWait :: IO (ImporterResult (ImporterException (Vector Person)))
+             -> IO (ImporterResult Int)
+    safeWait a = do
+      print ("STARTEd"::Text)
+      a' <- a
+      either storeEntry strictSuccess a'
 
-    handler :: MonadIO m => ExceptionHandler m (Vector Person) (ImporterResult Int)
-    handler ex =
+    strictSuccess (!x, !y) = do
+      print $ ("DONE" :: Text)
+      return $ Right (x, y)
+
+    storeEntry ex =
+      let
+        ps =
+          Types.exceptionData ex
+
+        !l =
+          V.length ps
       -- TODO: write entries to "update-failed.xml" file
-      return $ Left (V.length $ Types.exceptionData ex)
+      in
+        return $ Left l
 
 
 configFromEnv :: IO (Maybe Database.Config)
@@ -85,11 +99,11 @@ configFromEnv =
       return $ Database.Config (pack endpoint) (pack token)
 
 
-execUpsertions :: (MonadBaseControl IO m, MonadIO m)
+manyExecUpsertions :: (MonadBaseControl IO m, MonadIO m, MonadCatch m)
                => Database.Config
-               -> [Async (ImporterResult (ImporterException (Vector Person)))]
-               -> Consumer (Vector Person) (ResourceT m) [Async (ImporterResult (ImporterException (Vector Person)))]
-execUpsertions config asyncUpsertions = do
+               -> [m (ImporterResult (ImporterException (Vector Person)))]
+               -> Consumer (Vector Person) (ResourceT m) [m (ImporterResult (ImporterException (Vector Person)))]
+manyExecUpsertions config asyncUpsertions = do
   mpersons <- await
   case mpersons of
     Nothing ->
@@ -97,12 +111,10 @@ execUpsertions config asyncUpsertions = do
 
     Just persons ->
       -- process this batch and loop
-      execUpsertions config =<< execUpsertion persons
+      manyExecUpsertions config =<< execUpsertion persons
   where
     done =
       return asyncUpsertions
 
-    execUpsertion persons = do
-      asyncUpsertion <- liftIO $ async (Database.merge config persons)
-      return $ asyncUpsertion : asyncUpsertions
-      -- liftA2 (:) (liftIO $ async (upsert personBatch)) (pure asyncUpsertions)
+    execUpsertion persons =
+      return $ (Database.merge config persons) : asyncUpsertions

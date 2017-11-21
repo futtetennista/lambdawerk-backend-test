@@ -29,10 +29,10 @@ mkStats (startTime, endTime) results =
       foldr accumulateResults (0, 0, 0) results
 
     accumulateResults :: ImporterResult Int -> (Int, Int, Int) -> (Int, Int, Int)
-    accumulateResults ur (kos, oks, ms) =
+    accumulateResults res (kos, oks, ms) =
       either (\memberCount -> (kos + memberCount, oks, ms))
              (\(memberCount, rowCount) -> (kos, oks + memberCount, ms + rowCount))
-             ur
+             res
 
 
 prettyPrint :: Stats -> IO ()

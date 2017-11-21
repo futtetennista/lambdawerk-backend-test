@@ -8,8 +8,8 @@ where
 
 import Lib.Prelude
 import qualified Text.XML.Stream.Parse as XML
-import qualified Text.XML.Stream.Render as XMLRender
-import qualified Text.Hamlet.XML as XML
+-- import qualified Text.XML.Stream.Render as XMLRender
+import Text.Hamlet.XML (xml)
 import Data.XML.Types (Event(..))
 import Conduit
 import Data.Maybe (fromMaybe)
@@ -101,24 +101,22 @@ parseXMLInputFile :: Int -> FilePath -> Producer (ResourceT IO) (Vector Person)
 parseXMLInputFile batchSize fp =
   XML.parseFile XML.def fp
     .| parseEntries
-    -- .| takeC 50000
+    .| takeC 50000
     .| conduitVector batchSize
 
 
---- entry :: Person -> _-- [Text.XML.Node]
 entry p =
-  [XML.xml|
+  [xml|
 <member>
   <firstname> fname p
   <lastname> lname p
   <date-of-birth> dob p
-  <phone> phone b
+  <phone> phone p
 |]
 
 
 -- renderFailedEntries :: Conduit Event m XMLRender.Builder
-renderFailedEntries =
-  undefined
+-- renderFailedEntries = undefined
   -- XMLRender.renderBuilder XML.def
     -- .| return EventBeginDocument
     -- .| return EventBeginElement "members"
