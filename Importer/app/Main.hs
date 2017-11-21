@@ -18,6 +18,7 @@ import Data.ByteString.Char8 (pack)
 import Data.Time.Clock (getCurrentTime)
 import Control.Exception.Safe
 import Control.Monad.Fix (fix)
+import GHC.Base (String)
 
 
 main :: IO ()
@@ -38,7 +39,7 @@ main = do
               [(bs, "")] -> do
                 print ("Config: " <> show config :: Text)
                 print ("Batch size: " <> show bs :: Text)
-                print ("Processing file: " ++ filePath :: [Char])
+                print ("Processing file: " ++ filePath :: String)
                 processFile config bs filePath
 
               _ ->
