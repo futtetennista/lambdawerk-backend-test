@@ -5,36 +5,33 @@ module Stats ( Stats(..)
 where
 
 import Lib.Prelude
-import Person (Person)
-import Database (MergeResult)
+import Types (ImporterResult)
 import Data.Time.Clock (UTCTime, NominalDiffTime, diffUTCTime)
 
 
 data Stats =
   Stats { duration :: NominalDiffTime
         , successes :: Int
-        , failures :: [Person]
+        , failures :: Int
         , modifications :: Int
         }
   deriving Show
 
 
-mkStats :: (UTCTime, UTCTime) -> [MergeResult [Person]] -> Stats
+mkStats :: (UTCTime, UTCTime) -> [ImporterResult Int] -> Stats
 mkStats (startTime, endTime) results =
-  Stats totalTime oks kos n
+  Stats totalTime okCount koCount modifiedRowsCount
   where
     totalTime =
       diffUTCTime endTime startTime
 
-    (kos, oks, n) =
-      foldr accumulateResults ([], 0, 0) results
+    (koCount, okCount, modifiedRowsCount) =
+      foldr accumulateResults (0, 0, 0) results
 
-    accumulateResults :: MergeResult [Person]
-                      -> ([Person], Int, Int)
-                      -> ([Person], Int, Int)
-    accumulateResults ur (fs, ok, m) =
-      either (const (fs, ok, n))
-             (\(members, mods) -> (fs, ok + members, m + mods))
+    accumulateResults :: ImporterResult Int -> (Int, Int, Int) -> (Int, Int, Int)
+    accumulateResults ur (kos, oks, ms) =
+      either (\memberCount -> (kos + memberCount, oks, ms))
+             (\(memberCount, rowCount) -> (kos, oks + memberCount, ms + rowCount))
              ur
 
 

@@ -1,17 +1,13 @@
 {-# LANGUAGE ScopedTypeVariables #-}
 {-# LANGUAGE RankNTypes #-}
 {-# LANGUAGE DeriveGeneric #-}
-module Database ( MergeResult
-                , MergeException
-                , RowStats
-                , Config(..)
-                , ExceptionHandler
+module Database ( Config(..)
                 , merge
-                , mergeExceptionHandler
                 )
 where
 
 import Lib.Prelude hiding (handle)
+import Types (ImporterResult, ImporterException(..))
 import Person (Person(..))
 import Data.Vector (Vector)
 import Network.HTTP.Simple
@@ -23,19 +19,25 @@ import qualified Data.Aeson as JSON
 import qualified Data.Vector as V
 
 
-merge :: (MonadCatch m, MonadIO m) => Config -> Vector Person -> m (MergeResult [Person])
+merge :: (MonadCatch m, MonadIO m)
+      => Config
+      -> Vector Person
+      -> m (ImporterResult (ImporterException (Vector Person)))
 merge config ps =
-  handle (mergeExceptionHandler (V.toList ps)) $ do
+  handle exceptionHandler $ do
     response <- httpLbs =<< mkRequest
     if statusIsSuccessful (getResponseStatus response)
       then
         let
           mdecodedResponseBody =
             JSON.decode (getResponseBody response)
-         in
-          return $ Right (V.length ps, maybe 0 row_stats mdecodedResponseBody)
-      else do print response ; return $ Left (GeneralException (V.toList ps))
+        in
+          return $ Right (V.length ps, rowStatsOrZero mdecodedResponseBody)
+      else throw $ GeneralException ps
   where
+    rowStatsOrZero =
+      maybe 0 row_stats
+
     mkRequest :: MonadThrow m => m Request
     mkRequest =
       case murl of
@@ -54,37 +56,13 @@ merge config ps =
     murl =
       importURL . unpack $ configDBEndpointURL config <> "/rpc/merge"
 
+    exceptionHandler exception =
+      case fromException exception of
+        Just e@(HttpExceptionRequest _ _) ->
+          do print e ; throw (Types.ConnectionException ps)
 
-type ExceptionHandler m a =
-  (MonadCatch m, MonadIO m) => SomeException -> m a
-
-
-mergeExceptionHandler :: a -> ExceptionHandler m (MergeResult a)
-mergeExceptionHandler x exception =
-  case fromException exception of
-    Just e@(HttpExceptionRequest _ _) ->
-      do print e ; return $ Left (ConnectionException x)
-
-    e ->
-      do print e ; return $ Left (GeneralException x)
-
-
-type RowStats =
-  Int
-
-
-data MergeException a
-  = GeneralException a
-  | ConnectionException a
-  | InvalidEndpointURLException a
-  deriving (Show, Typeable)
-
-
-instance (Typeable a, Show a) => Exception (MergeException a)
-
-
-type MergeResult a =
-  Either (MergeException a) (Int, RowStats)
+        e ->
+          do print e ; throw (Types.GeneralException ps)
 
 
 data Config =

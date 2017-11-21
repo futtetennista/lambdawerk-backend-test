@@ -4,13 +4,14 @@ module Main (main)
 where
 
 import Protolude
+import Types -- (ImporterResult, ExceptionHandler, exceptionData)
 import Person (Person)
 import qualified Person
-import Database (ExceptionHandler, MergeResult)
 import qualified Database
 import qualified Stats
 import Conduit
 import Data.Vector (Vector)
+import qualified Data.Vector as V
 import System.Environment (lookupEnv)
 import Data.ByteString.Char8 (pack)
 import Data.Time.Clock (getCurrentTime)
@@ -50,7 +51,7 @@ main = do
         asyncUpsertions <- runConduitRes $
           Person.parseXMLInputFile batchSize fp .| execUpsertions config []
         -- wait for all workers to be done and gather their statistics
-        results <- waitAll (Database.mergeExceptionHandler []) asyncUpsertions
+        results <- waitAll asyncUpsertions
         endTime <- getCurrentTime
         Stats.prettyPrint (Stats.mkStats (startTime, endTime) results)
 
@@ -58,12 +59,20 @@ main = do
         print ("Usage: importer /path/to/xml/file 10000" :: Text)
 
 
-waitAll :: ExceptionHandler IO a -> [Async a] -> IO [a]
-waitAll handler =
-  foldr (liftA2 (:) . tryWait) (return [])
+waitAll :: [Async (ImporterResult (ImporterException (Vector Person)))]
+        -> IO [ImporterResult Int]
+waitAll =
+  foldr (liftA2 (:) . safeWait) (return [])
   where
-    tryWait =
-      handle handler . wait
+    safeWait :: Async (ImporterResult (ImporterException (Vector Person)))
+            -> IO (ImporterResult Int)
+    safeWait a =
+      either handler (return . Right) =<< wait a
+
+    handler :: MonadIO m => ExceptionHandler m (Vector Person) (ImporterResult Int)
+    handler ex =
+      -- TODO: write entries to "update-failed.xml" file
+      return $ Left (V.length $ Types.exceptionData ex)
 
 
 configFromEnv :: IO (Maybe Database.Config)
@@ -78,8 +87,8 @@ configFromEnv =
 
 execUpsertions :: (MonadBaseControl IO m, MonadIO m)
                => Database.Config
-               -> [Async (MergeResult [Person])]
-               -> Consumer (Vector Person) (ResourceT m) [Async (MergeResult [Person])]
+               -> [Async (ImporterResult (ImporterException (Vector Person)))]
+               -> Consumer (Vector Person) (ResourceT m) [Async (ImporterResult (ImporterException (Vector Person)))]
 execUpsertions config asyncUpsertions = do
   mpersons <- await
   case mpersons of

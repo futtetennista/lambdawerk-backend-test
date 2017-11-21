@@ -1,5 +1,6 @@
 {-# LANGUAGE DeriveGeneric #-}
 {-# LANGUAGE RankNTypes #-}
+{-# LANGUAGE QuasiQuotes #-}
 module Person ( Person(..)
               , parseXMLInputFile
               )
@@ -7,7 +8,9 @@ where
 
 import Lib.Prelude
 import qualified Text.XML.Stream.Parse as XML
-import Data.XML.Types (Event)
+import qualified Text.XML.Stream.Render as XMLRender
+import qualified Text.Hamlet.XML as XML
+import Data.XML.Types (Event(..))
 import Conduit
 import Data.Maybe (fromMaybe)
 import Data.Vector (Vector)
@@ -77,8 +80,8 @@ iso8601DateFormatNoTime =
   iso8601DateFormat Nothing
 
 
-parsePerson :: (MonadIO m, MonadThrow m) => Consumer Event m (Maybe Person)
-parsePerson =
+parseEntry :: (MonadIO m, MonadThrow m) => Consumer Event m (Maybe Person)
+parseEntry =
   XML.tagNoAttr "member" $
     mkPerson <$> content "firstname"
       <*> content "lastname"
@@ -89,13 +92,37 @@ parsePerson =
       XML.tagNoAttr tag XML.content
 
 
-parsePeople :: (MonadIO m, MonadThrow m) => Conduit Event m Person
-parsePeople =
-  void $ XML.tagNoAttr "members" $ XML.manyYield parsePerson
+parseEntries :: (MonadIO m, MonadThrow m) => Conduit Event m Person
+parseEntries =
+  void $ XML.tagNoAttr "members" $ XML.manyYield parseEntry
 
 
 parseXMLInputFile :: Int -> FilePath -> Producer (ResourceT IO) (Vector Person)
 parseXMLInputFile batchSize fp =
   XML.parseFile XML.def fp
-    .| parsePeople
+    .| parseEntries
+    -- .| takeC 50000
     .| conduitVector batchSize
+
+
+--- entry :: Person -> _-- [Text.XML.Node]
+entry p =
+  [XML.xml|
+<member>
+  <firstname> fname p
+  <lastname> lname p
+  <date-of-birth> dob p
+  <phone> phone b
+|]
+
+
+-- renderFailedEntries :: Conduit Event m XMLRender.Builder
+renderFailedEntries =
+  undefined
+  -- XMLRender.renderBuilder XML.def
+    -- .| return EventBeginDocument
+    -- .| return EventBeginElement "members"
+  -- XML.Document (XML.Prologue [] Nothing []) root []
+  -- where
+  --   root =
+  --     Element "members" empty entries

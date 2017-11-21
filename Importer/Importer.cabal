@@ -20,11 +20,13 @@ library
   exposed-modules:     Person
                      , Database
                      , Stats
+                     , Types
   other-modules:       Lib.Prelude
   build-depends:       base >= 4.7 && < 5
                      , protolude >= 0.1.6 && < 0.2
                      , xml-types == 0.3.6
                      , xml-conduit == 1.5.1
+                     , xml-hamlet == 0.4.1.*
                      , conduit-combinators == 1.1.1
                      , bytestring == 0.10.8.*
                      , vector
