@@ -1,0 +1,9 @@
+#! /usr/bin/env bash
+
+set -euf
+
+ARGS=$1
+GHC_VERSION="8.0.2"
+
+# echo ~/.stack/programs/x86_64-osx/ghc-"$GHC_VERSION"/bin/hp2ps $1
+~/.stack/programs/x86_64-osx/ghc-"$GHC_VERSION"/bin/hp2ps $1
