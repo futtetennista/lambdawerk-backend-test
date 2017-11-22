@@ -18,8 +18,8 @@ import Data.ByteString.Char8 (pack)
 import Data.Time.Clock (getCurrentTime)
 import Control.Monad.Fix (fix)
 import GHC.Conc (numCapabilities)
-import Control.Concurrent.STM.TChan
-import Control.Concurrent.STM.TVar
+import Control.Concurrent.STM.TChan (TChan, newTChan, writeTChan, readTChan)
+import Control.Concurrent.STM.TVar (TVar, newTVar, modifyTVar', readTVarIO)
 
 
 main :: IO ()
@@ -30,6 +30,7 @@ main = do
       if null filePath
       then print ("No input file provided" :: Text)
       else maybe (return ()) (runReaderT mergeProcess) =<< getMergeProcessEnv filePath batchSize
+
     _ ->
       printUsage
     where
@@ -46,8 +47,9 @@ main = do
           Just dbConfig ->
             case reads bs of
               [(n, "")] -> do
-                q <- atomically newTChan
-                s <- atomically $ newTVar Stats.emptyStats
+                (q, s) <- atomically $ do q <- newTChan
+                                          s <- newTVar Stats.emptyStats
+                                          return (q, s)
                 let
                   env =
                     Env (dbConfig, n, fp) q s
@@ -55,7 +57,6 @@ main = do
 
               _ ->
                 printUsage >> return Nothing
-
 
 
 getDBConfig :: IO (Maybe Database.Config)
@@ -150,19 +151,16 @@ worker c q s = do
       waitResult =<< async (Database.merge c persons)
 
     waitResult a =
-      either storeEntry strictSuccess =<< wait a
+      either storeEntry strictlySuccess =<< wait a
 
-    strictSuccess (!x, !y) =
+    strictlySuccess (!x, !y) =
       return $ Right (x, y)
 
+    -- TODO: write entries to "update-failed.xml" file
     storeEntry ex =
       let
-        ps =
-          Types.exceptionData ex
-
         !l =
-          V.length ps
-      -- TODO: write entries to "update-failed.xml" file
+          V.length $ Types.exceptionData ex
       in
         return $ Left l
 
