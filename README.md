@@ -20,8 +20,8 @@ person with the following form:
  <phone>9548938821</phone>
 </member>
 ```
-- well-formed (of an entry or person record): that has `fname`, `lname`, and
-`dob` not empty and and of the correct type
+- well-formed (referred to an entry or aperson record): that has `fname`, `lname`,
+and `dob` not empty and and of the correct type
 - importer: a program that takes the entries in the XML input file and asks the
 database to merge them with the person records in the persons table
 - merge process: see "Definition"

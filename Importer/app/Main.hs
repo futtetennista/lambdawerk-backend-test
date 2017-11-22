@@ -93,15 +93,15 @@ manyExecMerge :: (MonadIO m)
               => Database.Config
               -> Conduit (Vector Person) (ResourceT m) (ImporterResult Int)
 manyExecMerge config =
-  fix $ \loop -> maybe done (\xs -> yieldExecResult xs >> loop) =<< await
+  fix $ \loop -> maybe done (\xs -> yieldMergeResult xs >> loop) =<< await
   where
     done :: (MonadIO m) => Conduit (Vector Person) (ResourceT m) (ImporterResult Int)
     done =
       return ()
 
-    yieldExecResult :: (MonadIO m)
+    yieldMergeResult :: (MonadIO m)
                     => Vector Person -> Conduit (Vector Person) (ResourceT m) (ImporterResult Int)
-    yieldExecResult persons =
+    yieldMergeResult persons =
       yield =<< liftIO (execMerge persons)
 
     execMerge persons =

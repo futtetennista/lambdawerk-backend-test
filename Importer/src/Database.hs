@@ -46,13 +46,13 @@ merge config ps =
           (setRequestMethod "POST" .
            setRequestBodyJSON (MergeRequestBody ps) .
            addRequestHeader "User-Agent" "importer/0.0.1" .
-           addRequestHeader "Authorization" ("Bearer " <> configJWT config))
+           addRequestHeader "Authorization" ("Bearer " <> jwt config))
           `fmap` parseRequest (exportURL url)
 
     -- take into account the possibility that the supplied URL is invalid
     murl :: Maybe URL
     murl =
-      importURL . unpack $ configDBEndpointURL config <> "/rpc/merge"
+      importURL . unpack $ dbEndpointURL config <> "/rpc/merge"
 
     exceptionHandler exception =
       case fromException exception of
@@ -64,8 +64,8 @@ merge config ps =
 
 
 data Config =
-  Config { configDBEndpointURL :: ByteString
-         , configJWT :: ByteString
+  Config { dbEndpointURL :: ByteString
+         , jwt :: ByteString
          }
   deriving Show
 
