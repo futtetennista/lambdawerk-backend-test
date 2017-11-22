@@ -1,12 +1,15 @@
 module Stats ( Stats(..)
-             , mkStats
              , prettyPrint
+             , emptyStats
+             , updateDuration
+             , updateResults
              )
 where
 
 import Lib.Prelude
 import Types (ImporterResult)
-import Data.Time.Clock (UTCTime, NominalDiffTime, diffUTCTime)
+import Data.Time.Clock (UTCTime(..), NominalDiffTime, diffUTCTime, secondsToDiffTime)
+import Data.Time.Calendar (Day(..))
 
 
 data Stats =
@@ -18,21 +21,33 @@ data Stats =
   deriving Show
 
 
-mkStats :: (UTCTime, UTCTime) -> [ImporterResult Int] -> Stats
-mkStats (startTime, endTime) results =
-  Stats totalTime okCount koCount modifiedRowsCount
+emptyStats :: Stats
+emptyStats =
+  Stats nullDuration 0 0 0
   where
-    totalTime =
-      diffUTCTime endTime startTime
+    nullTime =
+      UTCTime (ModifiedJulianDay 0) (secondsToDiffTime 0)
 
+    nullDuration =
+      diffUTCTime nullTime nullTime
+
+
+updateDuration :: UTCTime -> UTCTime -> Stats -> Stats
+updateDuration startTime endTime stats =
+  stats{ duration = diffUTCTime endTime startTime }
+
+
+updateResults :: ImporterResult Int -> Stats -> Stats
+updateResults result stats =
+  stats{ successes = okCount, failures = koCount, modifications = modifiedRowsCount }
+  where
     (koCount, okCount, modifiedRowsCount) =
-      foldr accumulateResults (0, 0, 0) results
+      case result of
+        Left entryCount ->
+          (failures stats + entryCount, successes stats, modifications stats)
 
-    accumulateResults :: ImporterResult Int -> (Int, Int, Int) -> (Int, Int, Int)
-    accumulateResults res (kos, oks, ms) =
-      either (\memberCount -> (kos + memberCount, oks, ms))
-             (\(memberCount, rowCount) -> (kos, oks + memberCount, ms + rowCount))
-             res
+        Right (entryCount, rowCount) ->
+          (failures stats, entryCount + successes stats, rowCount + modifications stats)
 
 
 prettyPrint :: MonadIO m => Stats -> m ()

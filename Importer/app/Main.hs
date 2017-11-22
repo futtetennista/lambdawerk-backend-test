@@ -5,7 +5,7 @@ module Main (main)
 where
 
 import Protolude
-import Types (BatchSize, ImporterResult, exceptionData)
+import Types (BatchSize, exceptionData)
 import Person (Person)
 import qualified Person
 import qualified Database
@@ -17,7 +17,9 @@ import System.Environment (lookupEnv)
 import Data.ByteString.Char8 (pack)
 import Data.Time.Clock (getCurrentTime)
 import Control.Monad.Fix (fix)
-import GHC.Base (String)
+import GHC.Conc (numCapabilities)
+import Control.Concurrent.STM.TChan
+import Control.Concurrent.STM.TVar
 
 
 main :: IO ()
@@ -61,8 +63,24 @@ configFromEnv =
       return $ Database.Config (pack endpoint) (pack token)
 
 
-type Env =
+data Env =
+  Env { config :: Config
+      , queue :: Queue
+      , stats :: TVar Stats.Stats
+      }
+
+
+type Config =
   (Database.Config, BatchSize, FilePath)
+
+
+type Queue =
+  TChan (Job (Vector Person))
+
+
+data Job a
+  = Done
+  | Batch a
 
 
 type Importer =
@@ -71,55 +89,93 @@ type Importer =
 
 mergeProcess :: (MonadIO m) => Importer m ()
 mergeProcess = do
-  startTime <- liftIO getCurrentTime
-  results <- runMerge
-  endTime <- liftIO getCurrentTime
-  Stats.prettyPrint (Stats.mkStats (startTime, endTime) results)
+  start <- liftIO getCurrentTime
+  runMergeProcess
+  end <- liftIO getCurrentTime
+  updateDuration start end
+  Stats.prettyPrint =<< readStats
+  where
+    readStats =
+      liftIO . readTVarIO =<< asks stats
+
+    updateDuration start end = do
+      mergeProcessStats <- asks stats
+      liftIO $ atomically (modifyTVar' mergeProcessStats (Stats.updateDuration start end))
 
 
 -- The merge process is asynchronous and runs in constant memory:
 -- each time `batchSize` entries are read from the XML input file
--- a new merge action is executed
-runMerge :: (MonadIO m) => Importer m [ImporterResult Int]
-runMerge = do
-  (config, batchSize, fp) <- ask
-  liftIO . runConduitRes $
-    Person.parseXMLInputFile batchSize fp
-      .| manyExecMerge config
-      .| sinkList
-
-
-manyExecMerge :: (MonadIO m)
-              => Database.Config
-              -> Conduit (Vector Person) (ResourceT m) (ImporterResult Int)
-manyExecMerge config =
-  fix $ \loop -> maybe done (\xs -> yieldMergeResult xs >> loop) =<< await
+-- a new merge process job is enqueued and eventually executed
+runMergeProcess :: (MonadIO m) => Importer m ()
+runMergeProcess = do
+  (c, n, fp) <- asks config
+  q <- asks queue
+  s <- asks stats
+  liftIO $ do workers <- mkWorkers c q s
+              streamXMLInputFile n fp q
+              mapM_ wait workers
   where
-    done :: (MonadIO m) => Conduit (Vector Person) (ResourceT m) (ImporterResult Int)
-    done =
+    streamXMLInputFile :: BatchSize -> FilePath -> Queue -> IO ()
+    streamXMLInputFile n fp q =
+      runConduitRes $
+        Person.parseXMLInputFile n fp
+          .| manyExecMerge q
+          .| sinkNull
+
+    -- the concurrency degree is by looking at the number of Haskell threads
+    -- that can run truly simultaneously
+    mkWorkers c q s =
+      replicateM numCapabilities (async (worker c q s))
+
+
+-- Waits for a new merge process job, runs it and updates the stats. It stops when no more
+-- merge process jobs are present in the queue
+worker :: (MonadIO m) => Database.Config -> Queue -> TVar Stats.Stats -> m ()
+worker c q s = do
+  work <- liftIO $ atomically (readTChan q)
+  case work of
+    Done ->
       return ()
 
-    yieldMergeResult :: (MonadIO m)
-                    => Vector Person -> Conduit (Vector Person) (ResourceT m) (ImporterResult Int)
-    yieldMergeResult persons =
-      yield =<< liftIO (execMerge persons)
-
+    Batch ps -> do
+      liftIO (atomically . modifyTVar' s . Stats.updateResults =<< execMerge ps)
+      worker c q s
+  where
     execMerge persons =
-      waitResult =<< async (Database.merge config persons)
-      where
-        waitResult a =
-          either storeEntry strictSuccess =<< wait a
+      waitResult =<< async (Database.merge c persons)
 
-        strictSuccess (!x, !y) =
-          return $ Right (x, y)
+    waitResult a =
+      either storeEntry strictSuccess =<< wait a
 
-        storeEntry ex =
-          let
-            ps =
-              Types.exceptionData ex
+    strictSuccess (!x, !y) =
+      return $ Right (x, y)
 
-            !l =
-              V.length ps
-          -- TODO: write entries to "update-failed.xml" file
-          in
-            return $ Left l
+    storeEntry ex =
+      let
+        ps =
+          Types.exceptionData ex
+
+        !l =
+          V.length ps
+      -- TODO: write entries to "update-failed.xml" file
+      in
+        return $ Left l
+
+
+-- Each time `batchSize` entries are read and parsed from the XML input file create a
+-- new merge process job and enqueue it to be run by the next available worker
+manyExecMerge :: (MonadIO m) => Queue -> Conduit (Vector Person) (ResourceT m) ()
+manyExecMerge q =
+  fix $ \loop -> maybe done (\xs -> yieldMergeResult xs >> loop) =<< await
+  where
+    done =
+      void stopAllWorkers
+
+    stopAllWorkers =
+      replicateM numCapabilities $ enqueueMergeJob Done
+
+    yieldMergeResult persons =
+      enqueueMergeJob (Batch persons) >> yield ()
+
+    enqueueMergeJob =
+      liftIO . atomically . writeTChan q
