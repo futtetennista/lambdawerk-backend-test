@@ -5,7 +5,7 @@ module Main (main)
 where
 
 import Protolude
-import Types (ImporterResult, exceptionData)
+import Types (BatchSize, ImporterResult, exceptionData)
 import Person (Person)
 import qualified Person
 import qualified Database
@@ -16,7 +16,6 @@ import qualified Data.Vector as V
 import System.Environment (lookupEnv)
 import Data.ByteString.Char8 (pack)
 import Data.Time.Clock (getCurrentTime)
-import Control.Exception.Safe
 import Control.Monad.Fix (fix)
 import GHC.Base (String)
 
@@ -40,7 +39,7 @@ main = do
                 print ("Config: " <> show config :: Text)
                 print ("Batch size: " <> show bs :: Text)
                 print ("Processing file: " ++ filePath :: String)
-                processFile config bs filePath
+                runReaderT mergeProcess (config, bs, filePath)
 
               _ ->
                 printUsage
@@ -62,11 +61,18 @@ configFromEnv =
       return $ Database.Config (pack endpoint) (pack token)
 
 
-processFile :: (MonadBaseControl IO m, MonadIO m, MonadCatch m)
-            => Database.Config -> Int -> FilePath -> m ()
-processFile config batchSize fp = do
+type Env =
+  (Database.Config, BatchSize, FilePath)
+
+
+type Importer =
+  ReaderT Env
+
+
+mergeProcess :: (MonadIO m) => Importer m ()
+mergeProcess = do
   startTime <- liftIO getCurrentTime
-  results <- runMerge batchSize config fp
+  results <- runMerge
   endTime <- liftIO getCurrentTime
   Stats.prettyPrint (Stats.mkStats (startTime, endTime) results)
 
@@ -74,42 +80,34 @@ processFile config batchSize fp = do
 -- The merge process is asynchronous and runs in constant memory:
 -- each time `batchSize` entries are read from the XML input file
 -- a new merge action is executed
-runMerge :: (MonadBaseControl IO m, MonadIO m, MonadCatch m)
-         => Int -> Database.Config -> FilePath -> m [ImporterResult Int]
-runMerge batchSize config fp =
+runMerge :: (MonadIO m) => Importer m [ImporterResult Int]
+runMerge = do
+  (config, batchSize, fp) <- ask
   liftIO . runConduitRes $
     Person.parseXMLInputFile batchSize fp
       .| manyExecUpsertions config
       .| sinkList
 
 
-manyExecUpsertions :: (MonadBaseControl IO m, MonadIO m, MonadCatch m)
+manyExecUpsertions :: (MonadIO m)
                    => Database.Config
                    -> Conduit (Vector Person) (ResourceT m) (ImporterResult Int)
 manyExecUpsertions config =
   fix $ \loop -> maybe done (\xs -> yieldExecResult xs >> loop) =<< await
   where
-    done :: (MonadBaseControl IO m, MonadIO m, MonadCatch m)
-         => Conduit (Vector Person) (ResourceT m) (ImporterResult Int)
+    done :: (MonadIO m) => Conduit (Vector Person) (ResourceT m) (ImporterResult Int)
     done =
       return ()
 
-    yieldExecResult :: (MonadBaseControl IO m, MonadIO m, MonadCatch m)
-                    => Vector Person
-                    -> Conduit (Vector Person) (ResourceT m) (ImporterResult Int)
+    yieldExecResult :: (MonadIO m)
+                    => Vector Person -> Conduit (Vector Person) (ResourceT m) (ImporterResult Int)
     yieldExecResult persons =
       yield =<< liftIO (execMerge persons)
 
-    -- execMerge :: (MonadBaseControl IO m, MonadIO m, MonadCatch m)
-    --           => Vector Person
-    --           -> m (ImporterResult Int)
     execMerge persons =
-      safeWait =<< async (Database.merge config persons)
+      waitResult =<< async (Database.merge config persons)
       where
-        -- safeWait :: (MonadBaseControl IO m, MonadIO m, MonadCatch m)
-        --          => Async (ImporterResult (ImporterException (Vector Person)))
-        --          -> m (ImporterResult Int)
-        safeWait a =
+        waitResult a =
           either storeEntry strictSuccess =<< wait a
 
         strictSuccess (!x, !y) =

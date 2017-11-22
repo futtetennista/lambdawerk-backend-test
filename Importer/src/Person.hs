@@ -20,6 +20,7 @@ import qualified Data.Text as T
 import Data.Time.Format (parseTimeM, defaultTimeLocale, iso8601DateFormat)
 import Data.Time.Clock (UTCTime)
 import GHC.Base (String)
+import Types (BatchSize)
 
 
 {-
@@ -97,7 +98,7 @@ parseEntries =
   void $ XML.tagNoAttr "members" $ XML.manyYield parseEntry
 
 
-parseXMLInputFile :: Int -> FilePath -> Producer (ResourceT IO) (Vector Person)
+parseXMLInputFile :: BatchSize -> FilePath -> Producer (ResourceT IO) (Vector Person)
 parseXMLInputFile batchSize fp =
   XML.parseFile XML.def fp
     .| parseEntries

@@ -6,6 +6,10 @@ where
 import Lib.Prelude
 
 
+type BatchSize =
+  Int
+
+
 type RowStats =
   Int
 

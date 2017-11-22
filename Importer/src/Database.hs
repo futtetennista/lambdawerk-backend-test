@@ -12,7 +12,7 @@ import Person (Person(..))
 import Data.Vector (Vector)
 import Network.HTTP.Simple
 import Network.HTTP.Types.Status
-import Control.Exception.Safe
+import Control.Exception.Safe (MonadCatch, MonadThrow, handle, throw)
 import Network.URL
 import Data.ByteString.Char8 (unpack)
 import qualified Data.Aeson as JSON
@@ -20,9 +20,7 @@ import qualified Data.Vector as V
 
 
 merge :: (MonadCatch m, MonadIO m)
-      => Config
-      -> Vector Person
-      -> m (ImporterResult (ImporterException (Vector Person)))
+      => Config -> Vector Person -> m (ImporterResult (ImporterException (Vector Person)))
 merge config ps =
   handle exceptionHandler $ do
     response <- httpLbs =<< mkRequest
