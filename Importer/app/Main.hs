@@ -85,14 +85,14 @@ runMerge = do
   (config, batchSize, fp) <- ask
   liftIO . runConduitRes $
     Person.parseXMLInputFile batchSize fp
-      .| manyExecUpsertions config
+      .| manyExecMerge config
       .| sinkList
 
 
-manyExecUpsertions :: (MonadIO m)
-                   => Database.Config
-                   -> Conduit (Vector Person) (ResourceT m) (ImporterResult Int)
-manyExecUpsertions config =
+manyExecMerge :: (MonadIO m)
+              => Database.Config
+              -> Conduit (Vector Person) (ResourceT m) (ImporterResult Int)
+manyExecMerge config =
   fix $ \loop -> maybe done (\xs -> yieldExecResult xs >> loop) =<< await
   where
     done :: (MonadIO m) => Conduit (Vector Person) (ResourceT m) (ImporterResult Int)
