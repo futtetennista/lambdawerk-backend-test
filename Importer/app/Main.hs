@@ -29,32 +29,37 @@ main = do
     [filePath, batchSize] ->
       if null filePath
       then print ("No input file provided" :: Text)
-      else do
-        mconfig <- configFromEnv
-        case mconfig of
-          Nothing ->
-            print ("'API_ENDPOINT' or/and 'API_TOKEN' env variables not set. Cannot connect to the db." :: Text)
-
-          Just config ->
-            case reads batchSize of
-              [(bs, "")] -> do
-                print ("Config: " <> show config :: Text)
-                print ("Batch size: " <> show bs :: Text)
-                print ("Processing file: " ++ filePath :: String)
-                runReaderT mergeProcess (config, bs, filePath)
-
-              _ ->
-                printUsage
-
+      else maybe (return ()) (runReaderT mergeProcess) =<< getMergeProcessEnv filePath batchSize
     _ ->
       printUsage
     where
       printUsage =
         print ("Usage: importer /path/to/xml/file 10000" :: Text)
 
+      getMergeProcessEnv fp bs = do
+        mdbConfig <- getDBConfig
+        case mdbConfig of
+          Nothing -> do
+            print ("'API_ENDPOINT' or/and 'API_TOKEN' env variables not set. Cannot connect to the db." :: Text)
+            return Nothing
 
-configFromEnv :: IO (Maybe Database.Config)
-configFromEnv =
+          Just dbConfig ->
+            case reads bs of
+              [(n, "")] -> do
+                q <- atomically newTChan
+                s <- atomically $ newTVar Stats.emptyStats
+                let
+                  env =
+                    Env (dbConfig, n, fp) q s
+                return $ Just env
+
+              _ ->
+                printUsage >> return Nothing
+
+
+
+getDBConfig :: IO (Maybe Database.Config)
+getDBConfig =
   liftA2 mkMaybeConfig (lookupEnv "API_ENDPOINT") (lookupEnv "API_TOKEN")
   where
     mkMaybeConfig mendpoint mtoken = do
