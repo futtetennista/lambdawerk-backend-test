@@ -29,7 +29,9 @@ main = do
     [filePath, batchSize] ->
       if null filePath
       then print ("No input file provided" :: Text)
-      else maybe (return ()) (runReaderT mergeProcess) =<< getMergeProcessEnv filePath batchSize
+      else do
+        print ("Merge process started. Processing entries in XML input file: '" ++ filePath ++ "'")
+        maybe (return ()) (runReaderT mergeProcess) =<< getMergeProcessEnv filePath batchSize
 
     _ ->
       printUsage
@@ -111,7 +113,8 @@ mergeProcess = do
 
 -- The merge process is asynchronous and runs in constant memory:
 -- each time `batchSize` entries are read from the XML input file
--- a new merge process job is enqueued and eventually executed
+-- a new merge process job is put in the queue and eventually processed
+-- by a worker.
 runMergeProcess :: (MonadIO m) => Importer m ()
 runMergeProcess = do
   (c, n, fp) <- asks config
@@ -130,6 +133,7 @@ runMergeProcess = do
 
     -- the concurrency degree is by looking at the number of Haskell threads
     -- that can run truly simultaneously
+    mkWorkers :: Database.Config -> Queue -> TVar Stats.Stats -> IO [Async ()]
     mkWorkers c q s =
       replicateM numCapabilities (async (worker c q s))
 
@@ -150,8 +154,8 @@ worker c q s = do
     execMerge persons =
       waitResult =<< async (Database.merge c persons)
 
-    waitResult a =
-      either storeEntry strictlySuccess =<< wait a
+    waitResult asyncAction =
+      either storeEntry strictlySuccess =<< wait asyncAction
 
     strictlySuccess (!x, !y) =
       return $ Right (x, y)
