@@ -46,4 +46,4 @@ EOSQL
 # To check if the permissions where set correctly using psql
 # \du
 # SELECT * FROM information_schema.role_table_grants WHERE table_name = 'person';
-# SELECT * FROM information_schema.role_routine_grants WHERE routine_name='upsert';
+# SELECT * FROM information_schema.role_routine_grants WHERE routine_name='merge';

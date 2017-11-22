@@ -131,16 +131,17 @@ create a file named `postgREST.env` and provide values for the following variabl
   * `API_TOKEN`
 
 ## Implementation considerations
-I divided the problem into three sub-problems:
+
+While pondering and evaluating a solution, I identified three sub-problems:
 1. reading and parsing the XML input file
 2. serialising the content of the XML input file
 3. merging entries respecting the given invariants
 
 To achieve a *clean* architecture my design decision early on has been that
-the importer will be responsable for 1. and the database for 3. Communication
-will be happen using a REST API.
+the importer will be responsable for 1. and the database for 3.
 
 ### 1. Reading and parsing the XML input file
+
 It was clear from reading the problem definition that the XML input file was
 potentially to large to be read and parsed in memory. So the alternative was to
 stream it. Because lazy I/O is quite tricky and has subtleties that makes it easy
@@ -156,7 +157,8 @@ When choosing a `batchSize` one should consider at least the following factors:
 that in `Persons.hs:22`)
 - the optimal batch size for multi-row `INSERT`s in PostgreSQL
 
-#### 3. Merging entries respecting the given invariants
+### 3. Merging entries respecting the given invariants
+
 The database is responsanble for merging entries supplied by the importer in a
 correct and efficient way. I explored various possibilities:
 * `SELECT`ing person records one-by-one and checking the invariants is hopelessly slow
@@ -398,7 +400,8 @@ persons in the XML file.
 ##### CONs
 
 - there is a one-time cost to pay to sanitise the data in the persons table
-- there is a one-time cost to pay to add a primary key constraint in the persons table
+- there is a one-time cost to pay to add a `PRIMARY KEY` constraint in the
+persons table
 
 
 ## Not implemented
@@ -406,19 +409,20 @@ persons in the XML file.
 The following problems are not solved in satisfactory fashion, mostly because of
 time constraints but I wanted to mention them since I did ponder them.
 
-## Backpressure
+### Backpressure
 
 The importer doesn't have any short-circuiting when it come to temporarly halting
 or slowing down the merge process. This might overwhelm the database in case for
 some reason it cannot keep up.
 
-## Error handling
+### Error handling
 
 If the database is down or the is any other issue that prevents the request from
 reaching the database, the importer should either store the failed entries - i.e.
 in an `update-failed.xml` file - to retry later or be manually re-submitted.
 
-## Testing merge in the database
-I'm not sure how merge can be tested in an automated fashion. That would include
-spinning up the infrastructure that holds the database and invoke its `merge`
-function and then check the returned stats and query the database.
+### Tests
+- I'm not entirely sure how merge can be tested in an automated fashion.
+That would include spinning up the infrastructure that holds the database and
+invoke its `merge` function and then check the returned stats and query the database.
+- Fuzzy testing on parsing / serialising entries
