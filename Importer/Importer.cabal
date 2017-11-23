@@ -1,9 +1,7 @@
 name:                Importer
 version:             0.1.0.0
--- synopsis:
--- description:
-homepage:            https://github.com/githubuser/Importer#readme
-license:             AllRightsReserved
+homepage:            https://github.com/futtetennista/lambdawerk-backend-test/Importer#readme
+license:             MIT
 license-file:        LICENSE
 author:              futtetennista
 maintainer:          futtetennista@gmail.com
@@ -79,4 +77,4 @@ test-suite test
 
 source-repository head
   type:     git
-  location: https://github.com/futtetennista/Importer
+  location: https://github.com/futtetennista/lambdawerk-backend-test/Importer
