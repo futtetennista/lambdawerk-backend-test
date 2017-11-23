@@ -13,7 +13,7 @@ A person is uniquely identified by their `fname`, `lname`, `dob`.
 - XML input file: a file on disk that contains the data to be merged
 - entry: an XML element contained in the XML input file that represents a
 person with the following form:
-```
+```xml
 <member>
  <firstname>JOHN</firstname>
  <lastname>DOE</lastname>
@@ -48,7 +48,7 @@ Besides that, reason about performance and memory usage of the merge process
 
 ## Running the project
 
-```
+```bash
 # create and start database
 docker-compose up
 # compile the importer
@@ -59,6 +59,9 @@ stack exec importer -- update-file.xml 10000
 
 The importer right now is meant to be manually run from the command-line. It'd
 be not hard to put it in a Docker container and run it in an automated fashion.
+The [db dump](https://www.dropbox.com/s/kf5dv2way7nalik/person.sql.gz?dl=0) and 
+[update file](https://www.dropbox.com/s/11p83a4bp3ze73d/update-file.xml?dl=0) 
+need to be downloaded separately as they are too big.
 
 ### Technologies
 
