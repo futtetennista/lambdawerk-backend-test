@@ -7,7 +7,7 @@ module Stats ( Stats(..)
 where
 
 import Lib.Prelude
-import Types (ImporterResult)
+import Types (MergeJobResult)
 import Data.Time.Clock (UTCTime(..), NominalDiffTime, diffUTCTime, secondsToDiffTime)
 import Data.Time.Calendar (Day(..))
 
@@ -37,7 +37,7 @@ updateDuration startTime endTime stats =
   stats{ duration = diffUTCTime endTime startTime }
 
 
-updateResults :: ImporterResult Int -> Stats -> Stats
+updateResults :: MergeJobResult Int -> Stats -> Stats
 updateResults result stats =
   stats{ successes = okCount, failures = koCount, modifications = modifiedRowsCount }
   where

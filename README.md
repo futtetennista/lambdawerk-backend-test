@@ -1,6 +1,8 @@
 # LambdaWerk backend developer test
 
-## Ubiquitous Language
+## Problem assessment
+
+### Ubiquitous Language
 
 - person: an entity that has a first name `fname`, last name
 `lname` and date of birth `dob` and telephone number `phone`.
@@ -23,31 +25,26 @@ person with the following form:
 and `dob` not empty and and of the correct type
 - importer: a program that takes the entries in the XML input file and asks the
 database to merge them with the person records in the persons table
-- merge process: described in "Problem definition"
-- batch: a sub-unit consisting of a given number of entries in which the merge
-process is split for efficiency reasons
-
-### Problem definition
-
-Write a importer and update the persons table in such a way that, for each entry:
+- merge process: update the persons table in such a way that, for each entry:
   1. if the `phone` in the persons table is equal to the `phone` in the entry
      nothing should be changed in the persons table
   2. if the `phone` in the persons table is not equal to the `phone` in the entry
      it should be changed in the persons table
   3. if the entry is not stored in the persons table, a new person record needs
      to be created
+- merge job: a sub-unit consisting of a given number of entries in which the
+merge process is split for efficiency reasons
 
-The importer can be written in a programming language of your choice and the
-means of communication with the database are also not constrained.
+### Task
 
-### Success criteria
+Write a piece of software that executes the merge process in a way such that:
+- it must be *clean*
+- it must be *correct*
+- it should provide basic loading statistics at the end of the merge process
+- it should process the XML input file efficiently
+- it should minimize the overall run-time of the merge process
 
-- merge process code must be *clean*
-- merge process code must be *correct*
-- provide basic loading statistics at the end of the merge process
-- process the XML input file efficiently
-- minimize the overall run-time of the merge process
-- reason about performance and memory usage of the merge process
+Besides that, reason about performance and memory usage of the merge process
 
 ## Running the project
 
@@ -59,6 +56,9 @@ stack build
 # run the importer
 stack exec importer -- update-file.xml 10000
 ```
+
+The importer right now is meant to be manually run from the command-line. It'd
+be not hard to put it in a Docker container and run it in an automated fashion.
 
 ### Technologies
 
@@ -101,8 +101,10 @@ transitive dependencies
 ### Installation
 
 - [Docker](http://docker.com/) to have a sandboxed and reproduceable infrastructure
+(tested on Version 17.09.0-ce-mac35 (19611) Channel: stable a98b7c1b7c)
 - [Stack](https://docs.haskellstack.org/) build tool to have a sandboxed and
-reproduceable Haskell environment and install all needed dependencies
+reproduceable Haskell environment and install all needed dependencies (tested on
+Version 1.5.1 x86_64 hpack-0.17.1)
 
 ### Configuration
 
@@ -139,6 +141,10 @@ While pondering and evaluating a solution, I identified three sub-problems:
 
 To achieve a *clean* architecture my design decision early on has been that
 the importer will be responsable for 1. and the database for 3.
+The following sequence diagram aims to give a high level view of the architecture
+of the software I implemented
+
+![Merge process sequence diagram](images/merge-process-seqdiag.png)
 
 ### 1. Reading and parsing the XML input file
 
@@ -256,9 +262,9 @@ and the following shows how the memory consumption stays mostly constant
 
 When testing the space leak-free version of the importer I noticed that the merge
 process running time increased dramatically. It turned out the importer wasn't
-running batches fully in parallel, that is it was waiting for a batch to complete
-before merging the next one. The way I fixed it it's described in the commit
-message with SHA-1 333086d.
+running merge jobs fully in parallel, that is it was waiting for a merge job to complete
+before merging the next one. The way I fixed it it's also described in the commit
+message whose SHA-1 is 333086d.
 
 ## General assumptions
 - The database is hosted on a remote machine therefore the importer must connect
@@ -425,4 +431,5 @@ in an `update-failed.xml` file - to retry later or be manually re-submitted.
 - I'm not entirely sure how merge can be tested in an automated fashion.
 That would include spinning up the infrastructure that holds the database and
 invoke its `merge` function and then check the returned stats and query the database.
-- Fuzzy testing on parsing / serialising entries
+I did do some manual tests to assure the correctness of the `merge` function.
+- Fuzzy testing on parsing / serialising entries in the importer.

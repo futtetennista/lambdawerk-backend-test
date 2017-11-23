@@ -14,15 +14,15 @@ type RowStats =
   Int
 
 
-type ImporterResult a =
+type MergeJobResult a =
   Either a (Int, RowStats)
 
 
-data ImporterException a
+data MergeJobException a
   = GeneralException { exceptionData :: a }
   | ConnectionException { exceptionData :: a }
   | InvalidEndpointURLException { exceptionData :: a }
   deriving (Show, Typeable)
 
 
-instance (Typeable a, Show a) => Exception (ImporterException a)
+instance (Typeable a, Show a) => Exception (MergeJobException a)

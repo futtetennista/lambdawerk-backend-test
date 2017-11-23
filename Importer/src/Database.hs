@@ -7,7 +7,7 @@ module Database ( Config(..)
 where
 
 import Lib.Prelude hiding (handle)
-import Types (ImporterResult, ImporterException(..))
+import Types (MergeJobResult, MergeJobException(..))
 import Person (Person(..))
 import Data.Vector (Vector)
 import Network.HTTP.Simple
@@ -20,7 +20,7 @@ import qualified Data.Vector as V
 
 
 merge :: (MonadCatch m, MonadIO m)
-      => Config -> Vector Person -> m (ImporterResult (ImporterException (Vector Person)))
+      => Config -> Vector Person -> m (MergeJobResult (MergeJobException (Vector Person)))
 merge config ps =
   handle exceptionHandler $ do
     response <- httpLbs =<< mkRequest

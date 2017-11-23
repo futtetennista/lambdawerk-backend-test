@@ -148,9 +148,12 @@ worker c q s = do
       return ()
 
     Batch ps -> do
-      liftIO (atomically . modifyTVar' s . Stats.updateResults =<< execMerge ps)
+      liftIO (updateResults =<< execMerge ps)
       worker c q s
   where
+    updateResults =
+      atomically . modifyTVar' s . Stats.updateResults
+
     execMerge persons =
       waitResult =<< async (Database.merge c persons)
 
